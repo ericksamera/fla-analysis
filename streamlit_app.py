@@ -9,48 +9,77 @@ __comments__ = "stable enough; altered zoom"
 # --------------------------------------------------
 import streamlit as st
 # --------------------------------------------------
-class App:
-    def __init__(self):
-        """
-        """
-    def _init_page(self) -> None:
-        """
-        Function instantiates the main page.
-        """
-        self.title = "FLA-viewer"
-        st.set_page_config(
-            page_title=f"abi-sauce | {self.title}",
-            page_icon=':rainbow:',
-            layout='wide',
-            initial_sidebar_state='expanded')
-        st.markdown(
-            """
-            <style>
-            [data-testid="stSidebar"][aria-expanded="true"]{
-                min-width: 450px;
-                max-width: 450px;
-            }""",
-            unsafe_allow_html=True,
-            )   
-        self._init_sidebar()
-        self._init_main_window()
-    def _init_sidebar(self) -> None:
-        """
-        Instantiate the sidebar.
-        """
+
+if "marker_list" not in st.session_state:
+    st.session_state.marker_list = []
+if "genotype_results_df" not in st.session_state:
+    st.session_state.genotype_results_df = None
+if "detected_peaks_df" not in st.session_state:
+    st.session_state.detected_peaks_df = None
+if "PROCESSED_FLA" not in st.session_state:
+    st.session_state.PROCESSED_FLA = {}
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = []
+if "uploaded_files_id_counter" not in st.session_state:
+    st.session_state.uploaded_files_id_counter = 0
+if "config_changed" not in st.session_state:
+    st.session_state.config_changed = False
+if "marker_list" not in st.session_state:
+    st.session_state.marker_list = []
+if "genotype_results_df" not in st.session_state:
+    st.session_state.genotype_results_df = None
+if "detected_peaks_df" not in st.session_state:
+    st.session_state.detected_peaks_df = None
+if "PROCESSED_FLA" not in st.session_state:
+    st.session_state.PROCESSED_FLA = {}
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = []
+if "uploaded_files_id_counter" not in st.session_state:
+    st.session_state.uploaded_files_id_counter = 0
+
+def main():
+    st.set_page_config(
+        page_title="abi-sauce | FLA-viewer",
+        page_icon=':rainbow:',
+        layout='wide',
+        initial_sidebar_state='expanded')
     
-        with st.sidebar:
-            st.title(f":rainbow: abi-sauce | {self.title}")
-            st.success('Select one of the uploaded JSON files to get started!')
-    def _init_main_window(self) -> None:
-        """
-        """
-        st.title('Welcome to :rainbow: `abi-sauce`!')
-        st.markdown('This tool processes pre-parsed FLA JSON files with extended raw data.')
-        st.markdown('Check out my GitHub with the link below for some of my other projects.')
-        st.caption(f'[@{__author__}](https://github.com/ericksamera)\t|\tv{__version__}\t|\t{__comments__}')
-        return None
+    if "PROCESSED_FLA" not in st.session_state:
+        st.session_state.PROCESSED_FLA = {}
+
+    custom_pages = {"Analysis Tools": []}
+
+    custom_pages["Analysis Tools"].append(
+        st.Page("app_pages/home.py", title="Home", icon=":material/info:")
+    )
+    custom_pages["Analysis Tools"].append(
+        st.Page("app_pages/File_Processor.py", title="File Processor", icon=":material/file_present:")
+    )
+    custom_pages["Analysis Tools"].append(
+        st.Page("app_pages/file_upload_test.py", title="File tsest", icon=":material/file_present:")
+    )
+
+    if st.session_state.PROCESSED_FLA:
+        custom_pages["Analysis Tools"].append(
+            st.Page("app_pages/Distance_Matrix.py", title="Distance Matrix", icon=":material/table_chart:")
+        )
+        custom_pages["Analysis Tools"].append(
+            st.Page("app_pages/Peak_Visualizer.py", title="Peak Visualizer", icon=":material/insights:")
+        )
+    
+
+    
+    pg = st.navigation(custom_pages)
+    pg.run()
+
+    st.divider()
+    st.markdown('Check out my GitHub with the link below for some of my other projects.')
+    st.caption(f'[@{__author__}](https://github.com/ericksamera) | v{__version__} | {__comments__}')
+
+
+    if st.session_state.config_changed:
+        st.warning("Configuration has changed. Please re-analyze your data to apply the new settings.")
+    
 # --------------------------------------------------
-if __name__=="__main__":
-    streamlit_app = App()
-    streamlit_app._init_page()
+if __name__ == "__main__":
+    main()
