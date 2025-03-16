@@ -8,9 +8,8 @@ Version: 1.2.1
 Comments: stable enough; altered zoom
 """
 import streamlit as st
-import json
-import os
 import plotly.graph_objects as go
+import pandas as pd
 
 
 try:
@@ -24,13 +23,6 @@ class App:
     def __init__(self):
         self.title = "FLA-viewer"
         self.emoji = ':rainbow:'
-        # st.set_page_config(
-        #     page_title=f"abi-sauce | {self.title}",
-        #     page_icon=self.emoji,
-        #     layout='wide',
-        #     initial_sidebar_state='expanded'
-        # )
-        # A bit of styling for the sidebar
         st.markdown(
             """
             <style>
@@ -48,132 +40,49 @@ class App:
         Main entry point: sets up the sidebar, checks session_state, shows either
         the upload form or the viewer depending on what data we have.
         """
-        self._init_sidebar()
-
-        if "PROCESSED_FLA" not in st.session_state or not st.session_state.PROCESSED_FLA:
-            # If we have no data, let user upload FSA or JSON
-            self._init_file_uploader()
-        else:
-            # Otherwise, let user view the data
-            self._update_plot_window()
+        with st.sidebar: self._init_sidebar()
+        self._update_plot_window()
 
     def _init_sidebar(self) -> None:
-        with st.sidebar:
-            st.title(f"{self.emoji} abi-sauce | {self.title}")
-            st.markdown('This script can process `.fsa` files (if FLAProcessor is available) or parse `.json` files, then display the resulting traces.')
-            
-            # If there's processed data in session, let user pick a trace
-            if "PROCESSED_FLA" in st.session_state and st.session_state.PROCESSED_FLA:
-                st.divider()
-                with st.expander('**TRACE FILES:**', expanded=True):
-                    # Sort the processed list by name
-                    trace_list = list(st.session_state.PROCESSED_FLA.values())
-                    # Let user pick which trace to view
-                    trace_names = [t['name'] for t in trace_list]
-                    st.session_state.SELECTED_TRACE = st.selectbox(
-                        'Select trace file to view:',
-                        options=trace_names
-                    )
-
-                # Button to reset session
-                st.button('Reset & Upload New', type='primary', on_click=self._reset_state, use_container_width=True)
-
+        if st.session_state.PROCESSED_FLA:
             st.divider()
-            with st.expander('MORE INFO'):
-                st.markdown(
-                    'Fragment length analysis (FLA) determines the size of DNA fragments, '
-                    'useful for genotyping microsatellites.\n\n'
-                    'Capillary electrophoresis with fluorescently tagged fragments provides '
-                    'high resolution data that is processed with specialized software.'
+            with st.expander('**TRACE FILES:**', expanded=True):
+                # Sort the processed list by name
+                trace_list = list(st.session_state.PROCESSED_FLA.values())
+                trace_names = [t['name'] for t in trace_list]
+                st.session_state.SELECTED_TRACE = st.selectbox(
+                    'Select trace file to view:',
+                    options=trace_names
                 )
-                st.caption(f'[Erick Samera](https://github.com/ericksamera) | v1.2.1 | stable enough; altered zoom')
 
-    def _init_file_uploader(self) -> None:
+            # Display genotype results if available
+            selected_trace = st.session_state.SELECTED_TRACE
+            if selected_trace in st.session_state.PROCESSED_FLA:
+                trace_data = st.session_state.PROCESSED_FLA[selected_trace]
+                if "marker_results" in trace_data:
+                    genotype_data = []
+                    for marker, result in trace_data["marker_results"].items():
+                        genotype_data.append({
+                            "Marker": marker,
+                            "Channel": result["channel"],
+                            "Genotype": ", ".join(map(str, result["parsed_allele_calls"])),
+                            "Confidence": f"{result['genotype_confidence']:.3f}"
+                        })
+                    
+                    if genotype_data:
+                        st.divider()
+                        st.markdown("### **Predicted Genotypes**")
+                        df_genotypes = pd.DataFrame(genotype_data)
+                        st.dataframe(df_genotypes, use_container_width=True)
+
+
+    def _hex_to_rgb(self, hex_color: str):
         """
-        If we have no data in session, let user upload .fsa or .json files.
+        Converts a hex color string (e.g., "#0000FF") to an RGB tuple (0, 0, 255).
         """
-        st.header("Upload .fsa or preprocessed .json files to view")
-        uploaded_files = st.file_uploader(
-            "Select files",
-            type=["fsa", "json"],
-            accept_multiple_files=True
-        )
-        if uploaded_files:
-            if st.button("Process/Load files"):
-                self._upload_files(uploaded_files)
+        hex_color = hex_color.lstrip("#")
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
-    def _upload_files(self, _st_uploaded_files):
-        """
-        Processes .fsa files with FLAProcessor (if available), or loads JSON into session.
-        """
-        if "PROCESSED_FLA" not in st.session_state:
-            st.session_state.PROCESSED_FLA = {}
-
-        # If you want a default config or marker
-        if HAVE_PROCESSOR:
-            fla_config = FLAConfig()
-            marker_list = [MarkerConfig(marker="DefaultMarker", channel="6-FAM", repeat_unit=3, bins=(150, 250))]
-        else:
-            fla_config, marker_list = None, []
-
-        for up_file in _st_uploaded_files:
-            file_name = up_file.name
-            file_ext = os.path.splitext(file_name)[1].lower()
-
-            if file_ext == ".fsa":
-                if not HAVE_PROCESSOR:
-                    st.error("Cannot process .fsa because FLAProcessor isn't available.")
-                    continue
-                st.write(f"**Processing FSA**: {file_name}")
-                path = os.path.join("/tmp", file_name)
-                with open(path, "wb") as f:
-                    f.write(up_file.getbuffer())
-
-                processor = FLAProcessor(path, config=fla_config, marker_config=marker_list)
-                success = processor.process_all()
-                if success:
-                    # Build JSON data
-                    json_out = {
-                        "file": processor.fsa_data["name"],
-                        "fsa_data": {
-                            "smap": processor.fsa_data["smap"],
-                            "channels": {
-                                ch: list(map(float, arr))
-                                for ch, arr in processor.fsa_data["channels"].items()
-                            }
-                        },
-                        "detected_peaks": {
-                            ch: [
-                                {
-                                    "position": p.position,
-                                    "intensity": p.intensity,
-                                    "saturated": p.saturated,
-                                    "note": p.note
-                                }
-                                for p in peaks
-                            ]
-                            for ch, peaks in processor.detected_peaks.items()
-                        },
-                        "marker_results": processor.marker_results
-                    }
-                    # Convert to "viewer" format
-                    st.session_state.PROCESSED_FLA[processor.fsa_data["name"]] = self._convert_for_plotting(json_out)
-                else:
-                    st.error(f"Could not process FSA: {file_name}")
-
-            elif file_ext == ".json":
-                st.write(f"**Parsing JSON**: {file_name}")
-                try:
-                    data = json.load(up_file)
-                    # Convert to "viewer" format
-                    key_name = data.get("file", file_name)
-                    st.session_state.PROCESSED_FLA[key_name] = self._convert_for_plotting(data)
-                except Exception as exc:
-                    st.error(f"JSON parse error for {file_name}: {exc}")
-            else:
-                st.warning(f"Skipping unknown file type: {file_name}")
-
-        # Once done, if everything worked, user can pick from the sidebar
 
     def _convert_for_plotting(self, data: dict) -> dict:
         """
@@ -225,10 +134,23 @@ class App:
         for chvals in channels_data.values():
             all_ints.extend(chvals)
         max_y = max(all_ints) if all_ints else 100
-        max_y *= 1.05
+        max_y *= 1.15
 
         max_x = max(smap) if smap else 100
         max_x += 20
+
+        if "marker_list" in st.session_state:
+            for marker in st.session_state.marker_list:
+                bin_range = marker["bins"]
+                channel = marker["channel"]
+
+                if bin_range and channel in colors:
+                    fig.add_vrect(
+                        x0=bin_range[0], x1=bin_range[1],
+                        fillcolor=colors[channel], opacity=0.1,
+                        layer="below", line_width=0
+                    )
+
 
         for ch_name, intensity_list in channels_data.items():
             fig.add_trace(go.Scatter(
@@ -237,21 +159,25 @@ class App:
                 mode='lines',
                 name=ch_name,
                 fill='tozeroy',
+                hoverinfo='skip',
                 marker=dict(color=colors.get(ch_name, "gray"))
             ))
-            # Now add any peaks
+            if ch_name == "LIZ": continue
             fig.add_trace(go.Scatter(
                 x=peaks_x.get(ch_name, []),
                 y=peaks_y.get(ch_name, []),
                 mode='markers',
-                name=f"{ch_name} peaks",
+                name=f"{ch_name}",
                 showlegend=False,
+                hoverinfo='x+y+text+name',
+                hovertemplate = "size (bp): %{x}<br>" + "height: %{y}<br>" if ch_name not in ('LIZ') else "",
                 marker=dict(color=colors.get(ch_name, "gray"))
             ))
 
         fig.update_layout(
             xaxis=dict(range=[0, max_x], title="Size (bp)"),
             yaxis=dict(range=[0, max_y], title="Intensity"),
+            margin=dict(l=0, r=0, t=0, b=0),
             legend_title_text="Channels",
             dragmode="zoom"
         )
@@ -277,12 +203,27 @@ class App:
                 x_vals = peaks_x.get(ch_name, [])
                 y_vals = peaks_y.get(ch_name, [])
                 # Filter out very low position if you prefer
-                valid_data = [(x, y) for x, y in zip(x_vals, y_vals) if x > 25]
+                valid_data = [(x, y) for x, y in zip(x_vals, y_vals) if x > 50]
 
                 if not valid_data and not channels_data.get(ch_name):
                     continue  # No data, skip channel
 
                 fig = go.Figure()
+
+
+                if "marker_list" in st.session_state:
+                    for marker in st.session_state.marker_list:
+                        bin_range = marker["bins"]
+                        channel = marker["channel"]
+                        if channel != ch_name: continue
+
+                        if bin_range and channel in colors:
+                            fig.add_vrect(
+                                x0=bin_range[0], x1=bin_range[1],
+                                fillcolor=colors[channel], opacity=0.1,
+                                layer="below", line_width=0
+                            )
+
                 # Add the entire channel trace
                 fig.add_trace(go.Scatter(
                     x=smap,
@@ -290,8 +231,10 @@ class App:
                     mode='lines',
                     name=ch_name,
                     fill='tozeroy',
+                    hoverinfo='skip',
                     marker=dict(color=ch_color)
                 ))
+
                 # Add the peak markers
                 if valid_data:
                     dx = [p[0] for p in valid_data]
@@ -300,8 +243,9 @@ class App:
                         x=dx,
                         y=dy,
                         mode='markers',
-                        name=f"{ch_name} peaks",
+                        name=f"{ch_name}",
                         showlegend=False,
+                        hovertemplate = "size (bp): %{x}<br>" + "height: %{y}<br>" if ch_name not in ('LIZ') else "",
                         marker=dict(color=ch_color, size=3)
                     ))
                 # Scale
@@ -312,10 +256,10 @@ class App:
                     xaxis=dict(range=[0, max_x], title="Size (bp)"),
                     yaxis=dict(range=[0, max_y], title="Intensity"),
                     height=200,
-                    margin=dict(l=50, r=50, t=30, b=30)
+                    margin=dict(l=0, r=0, t=0, b=0),
                 )
 
-                st.subheader(f"Channel: {ch_name}")
+                st.markdown(f"### {ch_name}")
                 st.plotly_chart(fig, use_container_width=True)
 
                 # If user wants tables
@@ -327,6 +271,7 @@ class App:
                         table_rows = [row for row in table_rows if row["height"] > avg_h]
 
                     st.dataframe(table_rows, use_container_width=True)
+                st.divider()
 
     def _update_plot_window(self) -> None:
         """
@@ -350,13 +295,6 @@ class App:
         st.plotly_chart(fig, use_container_width=True)
         # Per-channel expansions
         self._plot_per_channel_traces(trace_dict)
-
-    def _reset_state(self) -> None:
-        """
-        Clears everything in st.session_state so user can start fresh.
-        """
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
 
 streamlit_app = App()
 streamlit_app._init_page()

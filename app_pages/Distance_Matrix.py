@@ -5,17 +5,13 @@ import itertools
 import ast
 import plotly.express as px
 import plotly.figure_factory as ff
-import plotly.graph_objects as go
 from collections import Counter
 
 if st.session_state.config_changed:
     st.warning("Configuration has changed. Please re-analyze your data to apply the new settings.")
 
 st.title("Hierarchical Clustering & PCoA (Plotly)")
-method = st.selectbox(
-    "Select linkage method for hierarchical clustering",
-    ["single", "complete", "average", "weighted", "centroid", "median", "ward"]
-)
+method = "average"
 
 ###############################################################################
 # Utility Functions (Same as Before)
@@ -187,19 +183,32 @@ class GenotypeAnalyzer:
         return dm_filled
 
     def perform_pcoa(self, distance_matrix, n_components=2):
-        """Perform basic PCoA on a distance matrix."""
+        """Perform basic PCoA on a distance matrix and return eigenvalues."""
         D = distance_matrix.values.astype(float)
         n = D.shape[0]
+
+        if n < n_components:
+            raise ValueError(f"Not enough samples for {n_components} PCoA dimensions. Only {n} samples available.")
+
         D2 = D ** 2
         J = np.eye(n) - np.ones((n, n)) / n
         B = -0.5 * J.dot(D2).dot(J)
+
         eigvals, eigvecs = np.linalg.eigh(B)
         idx = np.argsort(eigvals)[::-1]
         eigvals = eigvals[idx]
         eigvecs = eigvecs[:, idx]
+
         pos_idx = eigvals > 0
-        coords = eigvecs[:, pos_idx][:, :n_components] * np.sqrt(eigvals[pos_idx][:n_components])
-        return coords
+        coords = eigvecs[:, pos_idx] * np.sqrt(eigvals[pos_idx])
+
+        if coords.shape[1] < n_components:
+            coords = np.hstack([coords, np.zeros((n, n_components - coords.shape[1]))])
+
+        # Compute explained variance ratios
+        explained_variance_ratio = eigvals / eigvals.sum()
+
+        return coords[:, :n_components], explained_variance_ratio
 
     def create_dendrogram(self, distance_matrix, linkage_method="single"):
         """Create a Plotly dendrogram from the distance matrix."""
@@ -221,8 +230,9 @@ if ("genotype_results_df" in st.session_state
 
     if valid_markers:
         df_valid = df[df["Marker"].isin(valid_markers)]
-        st.write("Markers with genotype data for at least two individuals:")
-        st.dataframe(df_valid)
+        with st.expander("Genotypes table", expanded=False):
+            st.write("Markers with genotype data for at least two individuals:")
+            st.dataframe(df_valid)
     else:
         st.info("No markers have genotype data for at least two individuals.")
         st.stop()
@@ -246,7 +256,12 @@ if ("genotype_results_df" in st.session_state
         st.text_area("Distance Matrix", tsv_output, height=300)
 
     # Perform PCoA
-    coords = analyzer.perform_pcoa(dm_filled, n_components=2)
+    coords, explained_variance_ratio = analyzer.perform_pcoa(dm_filled, n_components=2)
+
+    scree_df = pd.DataFrame({
+    "Principal Coordinate": [f"PCoA {i+1}" for i in range(len(explained_variance_ratio))],
+    "Explained Variance": explained_variance_ratio })
+
     pcoa_df = pd.DataFrame(coords, columns=["PCoA1", "PCoA2"])
     pcoa_df["Sample"] = analyzer.samples
 
@@ -256,7 +271,17 @@ if ("genotype_results_df" in st.session_state
         labels={"PCoA1": "PCoA 1", "PCoA2": "PCoA 2"}
     )
     fig_pcoa.update_traces(textposition="top center")
-    st.plotly_chart(fig_pcoa)
+    
+
+    fig_scree = px.bar(
+        scree_df, x="Principal Coordinate", y="Explained Variance",
+        title="Scree Plot of PCoA",
+        labels={"Explained Variance": "Proportion of Variance Explained"}
+        )
+    
+    col_pcoa, col_scree = st.columns([4, 2])
+    with col_pcoa: st.plotly_chart(fig_pcoa)
+    with col_scree: st.plotly_chart(fig_scree)
 
     # Dendrogram
     fig_dend = analyzer.create_dendrogram(dm_filled, linkage_method=method)

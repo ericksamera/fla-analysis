@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-FLA Processor Module (Modified - No Peak Combining, Extended Raw Output, Saturation Handling)
---------------------------------------------------------------------------------------------
-This module implements the FLAProcessor class to process fragment length analysis (FLA)
-data from .fsa files. In this version:
+FLA Processor Module (Polyploid + Advanced Filtering Support)
+------------------------------------------------------------------
+This module implements a fragment length analysis (FLA) pipeline that:
+ 1) Loads .fsa files and detects peaks (including a saturation check
+    and local Gaussian fitting for high-intensity peaks).
+ 2) Performs bin filtering to keep only peaks in the marker’s expected range.
+ 3) Performs stutter filtering based on stutter_ratio_threshold and tolerance.
+ 4) Uses a fraction-based approach to assign up to `ploidy` allele copies
+    in each marker range. (E.g., in a tetraploid, if one peak has ~50% of
+    the total intensity, it’s assigned two copies, etc.)
+ 5) Optionally adjusts final allele calls to repeat boundaries if needed.
+ 6) Collects QC flags, genotype confidence, and logs all results.
 
-1. Peaks are not combined via clustering.
-2. We incorporate a local Gaussian fit for peaks that may be saturated at the instrument’s detection limit,
-   potentially extending beyond the recorded max.
-3. Distance-based ratio thresholds remain for determining heterozygous calls.
-
-Author: Erick Samera (Refactored, with new distance-based ratio thresholds and saturation handling)
-Version: 1.2.0-modified
+Author: Erick Samera (Refactored, with polyploid fraction-based allele assignment)
+Version: 1.3.0-polyploid
 """
 
 import numpy as np
@@ -27,7 +30,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Data Classes for Configuration and Peak Data ---
+# ------------------------------------------------------------------
+# Data Classes for Configuration and Peak Data
+# ------------------------------------------------------------------
 
 @dataclass
 class Peak:
@@ -52,7 +57,7 @@ class FLAConfig:
     instrument_saturation_value: float = 30000.0
     global_het_ratio_lower_bound: float = 0.35
     gaussian_fit_window: int = 5
-    ploidy: int = 2
+    ploidy: int = 2  # For polyploid calling, can be 2 (diploid), 3 (triploid), 4 (tetraploid), etc.
 
 @dataclass
 class MarkerConfig:
@@ -63,10 +68,12 @@ class MarkerConfig:
     stutter_ratio_threshold: Optional[float] = None
     stutter_tolerance: Optional[float] = None
     het_ratio_lower_bound: Optional[float] = None
-    stutter_direction: str = "both"  # "left" for Dox09, "right" for others
+    stutter_direction: str = "both"  # "left", "right", or "both"
 
 
-# --- Helper Functions for Gaussian Fitting and QC ---
+# ------------------------------------------------------------------
+# Helper Functions for Gaussian Fitting and QC
+# ------------------------------------------------------------------
 
 def gaussian(x: np.ndarray, A: float, mu: float, sigma: float) -> np.ndarray:
     """A standard Gaussian function."""
@@ -96,7 +103,9 @@ def aggregate_qc_penalties(penalties: List[float]) -> float:
     """Sums up penalty values to produce a final QC penalty."""
     return sum(penalties)
 
-# --- Main FLAProcessor Class (No Peak Combining, Distanced-Based Ratio Logic) ---
+# ------------------------------------------------------------------
+# Main FLAProcessor Class (Polyploid + Filter Logic)
+# ------------------------------------------------------------------
 
 class FLAProcessor:
     def __init__(self, file_path: str, 
@@ -138,12 +147,15 @@ class FLAProcessor:
             logger.error(f"Error loading FSA file: {e}")
             return False
 
+    # ------------------------------------------------------------------
+    # Saturation & Peak Detection
+    # ------------------------------------------------------------------
+
     def _estimate_saturated_peak_intensity(self, data_np: np.ndarray, smap: np.ndarray, peak_idx: int) -> float:
         """
         For a peak suspected of saturation, fit a Gaussian in a local window around the peak
         to estimate the true amplitude. Return the fitted amplitude if it's higher.
         """
-        # Prepare local window around the peak
         window = self.config.gaussian_fit_window
         start = max(peak_idx - window, 0)
         end = min(peak_idx + window + 1, len(data_np))
@@ -159,7 +171,10 @@ class FLAProcessor:
             return data_np[peak_idx]
 
     def detect_peaks(self) -> None:
-        """Detects peaks in each channel using SciPy's find_peaks, with saturation handling."""
+        """
+        Detects peaks in each channel using SciPy's find_peaks, with saturation handling.
+        Stores them in self.detected_peaks.
+        """
         if self.fsa_data is None:
             logger.error("FSA data not loaded.")
             return
@@ -169,35 +184,33 @@ class FLAProcessor:
 
         for channel, data in self.fsa_data["channels"].items():
             data_np = np.array(data, dtype=float)
-            # Basic peak detection
             indices = find_peaks(data_np)[0]
 
             peaks: List[Peak] = []
             for i in indices:
                 raw_intensity = data_np[i]
-                # Check if this peak is above min threshold and within position range
+                # Check threshold
                 if raw_intensity >= self.config.min_peak_height:
                     pos = smap[i] if i < len(smap) else None
                     if pos is not None and pos >= self.config.min_peak_position:
-                        # Check if at or near saturation
-                        saturated = False
-                        if raw_intensity >= self.config.instrument_saturation_value:
-                            saturated = True
-                            # Attempt local Gaussian fit
+                        saturated = (raw_intensity >= self.config.instrument_saturation_value)
+                        if saturated:
                             corrected_intensity = self._estimate_saturated_peak_intensity(data_np, smap, i)
                             peak = Peak(position=float(pos),
                                         intensity=float(corrected_intensity),
                                         saturated=True,
                                         note="Saturated peak; corrected via Gaussian.")
                         else:
-                            peak = Peak(position=float(pos),
-                                        intensity=float(raw_intensity),
-                                        saturated=False)
+                            peak = Peak(position=float(pos), intensity=float(raw_intensity))
                         peaks.append(peak)
 
-            # Sort peaks by intensity in descending order
+            # Sort peaks by intensity descending
             peaks.sort(key=lambda p: p.intensity, reverse=True)
             self.detected_peaks[channel] = peaks
+
+    # ------------------------------------------------------------------
+    # Binning / Stutter Filtering
+    # ------------------------------------------------------------------
 
     def _bin_peaks(self,
                    raw_peaks: List[Peak],
@@ -205,13 +218,12 @@ class FLAProcessor:
                    repeat_unit: Optional[int]) -> Tuple[List[Peak], List[str]]:
         """
         Filters peaks by a bin range plus a tolerance region based on repeat_unit,
-        and applies a relative intensity threshold. Peaks that fall outside bin_min..bin_max
-        but within this tolerance are flagged yet still included.
+        and applies a relative intensity threshold. 
         """
         bin_min, bin_max = b_range
 
-        # Use repeat_unit to set tolerance if available, else fall back to config.bin_tolerance
-        if repeat_unit is not None:
+        # Use repeat_unit to set a bigger tolerance if we want (e.g. ±2 repeats)
+        if repeat_unit is not None and repeat_unit > 0:
             tol = repeat_unit * 2
         else:
             tol = self.config.bin_tolerance
@@ -219,17 +231,17 @@ class FLAProcessor:
         current_bin_peaks: List[Peak] = []
         qc_flags: List[str] = []
 
-        # Collect all peaks that lie within (bin_min - tol, bin_max + tol)
+        # Keep all peaks within bin ± tol
         for peak in raw_peaks:
             if (bin_min - tol) <= peak.position <= (bin_max + tol):
-                # If it's outside the strict bin, but within tol, just flag it
+                # If strictly out-of-bin but within tol => flag it
                 if not (bin_min <= peak.position <= bin_max):
                     qc_flags.append(
                         f"Peak at {peak.position:.2f} is out-of-bin but within ±{tol} bp of bin {b_range}."
                     )
                 current_bin_peaks.append(peak)
 
-        # Apply relative-intensity filtering if we have any peaks
+        # Apply relative-intensity filtering
         if current_bin_peaks:
             max_intensity = max(p.intensity for p in current_bin_peaks)
             rel_thresh = self.config.relative_peak_threshold
@@ -250,9 +262,9 @@ class FLAProcessor:
                               stutter_direction: str) -> List[Peak]:
         """
         Removes likely stutter peaks, factoring in the stutter direction.
-        - "left": stutter is smaller than the main peak
-        - "right": stutter is larger
-        - "both": remove stutter on both sides
+         - "left": stutter is smaller than the main peak
+         - "right": stutter is larger
+         - "both": remove stutter on both sides
         """
         if not peaks:
             return peaks
@@ -272,159 +284,128 @@ class FLAProcessor:
                 candidate = sorted_peaks[j]
                 stutter_offset = main_peak.position - candidate.position
 
-                # "Left" stutter => candidate is to the left of main peak
+                # "Left" stutter => candidate is smaller (left on bp axis)
+                # "Right" stutter => candidate is bigger (right on bp axis)
                 if abs(stutter_offset - repeat_unit) <= tolerance:
+                    # stutter_offset>0 => candidate is to the left
                     if (stutter_direction in ["left", "both"] and stutter_offset > 0):
                         if candidate.intensity <= stutter_ratio_threshold * main_peak.intensity:
                             removed_indices.add(j)
+                    # stutter_offset<0 => candidate is to the right
                     elif (stutter_direction in ["right", "both"] and stutter_offset < 0):
                         if candidate.intensity <= stutter_ratio_threshold * main_peak.intensity:
                             removed_indices.add(j)
 
-        return accepted_peaks
+        # Reconstruct the final list from accepted_peaks
+        final_peaks = [p for i, p in enumerate(sorted_peaks) if i not in removed_indices]
+        return sorted(final_peaks, key=lambda p: p.intensity, reverse=True)
 
-    def _compute_weighted_average(self, peaks: List[Peak]) -> float:
-        """
-        Computes an intensity-weighted average of peak positions.
-        """
-        total_intensity = sum(p.intensity for p in peaks)
-        if total_intensity <= 0:
-            return peaks[0].position
-        return sum(p.position * p.intensity for p in peaks) / total_intensity
+    # ------------------------------------------------------------------
+    # Polyploid Allele Calling (Fraction-Based)
+    # ------------------------------------------------------------------
 
-    def _dynamic_ratio_threshold(self, peak_distance: float, repeat_unit: Optional[int]) -> float:
+    def _call_alleles_polyploid(self, current_bin_peaks: List[Peak]) -> List[int]:
         """
-        Decide how high the ratio must be for calling heterozygosity, based on how many repeat
-        units away the second peak is from the first. If only 1 repeat away, require a near 1:1 ratio.
-        Larger distances allow a lower ratio.
+        Fraction-based approach to distribute up to `config.ploidy` copies across the set of peaks.
+        E.g. if ploidy=4 and a peak is ~50% of total intensity => 2 copies, etc.
         """
-        if repeat_unit is None:
-            # If no repeat unit, just use a baseline
-            return self.config.global_het_ratio_lower_bound
-
-        repeats_away = round(peak_distance / repeat_unit)
-
-        # Example logic
-        if repeats_away <= 1:
-            return 0.4
-        elif repeats_away == 2:
-            return 0.3
-        else:
-            return 0.2
-
-    def _call_alleles_no_combine(
-        self,
-        b_range: Tuple[int, int],
-        current_bin_peaks: List[Peak],
-        marker_name: str,
-        repeat_unit: Optional[int],
-        baseline_ratio: float
-    ) -> Tuple[List[Tuple[int, int]], List[dict], List[str], float, Optional[float]]:
-        """
-        Processes peaks without combining them into clusters.
-        Selects top two peaks by intensity for allele calling,
-        with distance-based thresholds to decide heterozygosity.
-        """
-        allele_calls: List[Tuple[int, int]] = []
-        binned_peaks_info: List[dict] = []
-        qc_flags: List[str] = []
-        qc_penalties: List[float] = []
-        heterozygous_fraction: Optional[float] = None
-
         if not current_bin_peaks:
-            qc_flags.append(f"No peak detected in bin {b_range} for marker {marker_name}")
-            return allele_calls, binned_peaks_info, qc_flags, 0.0, heterozygous_fraction
+            return []
 
-        # Sort by intensity descending
-        sorted_peaks = sorted(current_bin_peaks, key=lambda p: p.intensity, reverse=True)
+        total_intensity = sum(p.intensity for p in current_bin_peaks)
+        if total_intensity <= 0:
+            return []
 
-        if len(sorted_peaks) == 1:
-            # Only one peak => homozygous
-            main = sorted_peaks[0]
-            allele_call = (round(main.position), round(main.position))
-            allele_calls.append(allele_call)
-            qc_flags.append(f"Only one peak detected in bin {b_range} for marker {marker_name}.")
-            qc_penalties.append(self.config.ratio_weight * 0.5)
-            binned_peaks_info.append({
-                "allele_range": b_range,
-                "peaks": [vars(main)],
-                "note": "Single peak"
-            })
-        else:
-            # Take top two
-            major = sorted_peaks[0]
-            minor = sorted_peaks[1]
-            ratio = minor.intensity / major.intensity
+        # fraction for each peak
+        float_counts = []
+        for p in current_bin_peaks:
+            frac = p.intensity / total_intensity
+            # Multiply fraction by ploidy => "ideal" copy count
+            float_counts.append(frac * self.config.ploidy)
 
-            # Distance-based threshold
-            peak_distance = abs(major.position - minor.position)
-            dynamic_threshold = self._dynamic_ratio_threshold(peak_distance, repeat_unit)
-            effective_het_lower_bound = dynamic_threshold
+        # Floor them, then distribute leftover
+        floor_counts = [int(math.floor(fc)) for fc in float_counts]
+        sum_floor = sum(floor_counts)
+        leftover = self.config.ploidy - sum_floor
 
-            if effective_het_lower_bound <= ratio <= 1.0:
-                # Heterozygous
-                allele_call = (round(major.position), round(minor.position))
-                allele_calls.append(tuple(sorted(allele_call)))
-                heterozygous_fraction = ratio
-                qc_penalties.append(self.config.ratio_weight * abs(ratio - 0.5))
-                binned_peaks_info.append({
-                    "allele_range": b_range,
-                    "peaks": [vars(major), vars(minor)],
-                    "ratio": ratio,
-                    "repeat_unit": repeat_unit,
-                    "peak_distance": peak_distance,
-                    "distance_threshold": dynamic_threshold,
-                })
-            else:
-                # Imbalanced ratio => treat as single allele call
-                qc_flags.append(
-                    f"Peaks in bin {b_range} for {marker_name} have imbalanced ratio "
-                    f"({ratio:.2f}) with {peak_distance:.1f}bp separation."
-                )
-                allele_call = (round(major.position), round(major.position))
-                allele_calls.append(allele_call)
-                qc_penalties.append(self.config.ratio_weight * abs(ratio - 0.5))
-                binned_peaks_info.append({
-                    "allele_range": b_range,
-                    "peaks": [vars(major), vars(minor)],
-                    "ratio": ratio,
-                    "note": "Ambiguous ratio",
-                    "repeat_unit": repeat_unit,
-                    "peak_distance": peak_distance,
-                    "distance_threshold": dynamic_threshold
-                })
+        # Sort peaks by fractional remainder descending
+        remainders = [(fc - math.floor(fc)) for fc in float_counts]
+        idx_sorted_by_rema = sorted(range(len(current_bin_peaks)), key=lambda i: remainders[i], reverse=True)
 
-        overall_penalty = aggregate_qc_penalties(qc_penalties)
-        return allele_calls, binned_peaks_info, qc_flags, overall_penalty, heterozygous_fraction
+        final_counts = floor_counts[:]
+        if leftover > 0:
+            # Give leftover copies to largest remainders
+            for idx in idx_sorted_by_rema[:leftover]:
+                final_counts[idx] += 1
+        elif leftover < 0:
+            # We assigned too many copies => remove from smallest remainders first
+            leftover_to_remove = abs(leftover)
+            idx_sorted_asc = sorted(range(len(current_bin_peaks)), key=lambda i: remainders[i], reverse=False)
+            for idx in idx_sorted_asc:
+                if leftover_to_remove <= 0:
+                    break
+                if final_counts[idx] > 0:
+                    final_counts[idx] -= 1
+                    leftover_to_remove -= 1
 
-    def _adjust_alleles(self,
-                        allele_call: Tuple[int, int],
-                        b_range: Tuple[int, int],
-                        repeat_unit: int) -> Tuple[Tuple[int, int], List[str], float]:
+        # Construct final allele set => each peak's position repeated final_counts[i] times
+        allele_positions = []
+        for count, peak in zip(final_counts, current_bin_peaks):
+            allele_positions.extend([round(peak.position)] * count)
+        # Sort ascending by position
+        allele_positions.sort()
+
+        return allele_positions
+
+    def _adjust_alleles(
+        self,
+        allele_positions: List[int],
+        b_range: Tuple[int, int],
+        repeat_unit: int
+    ) -> Tuple[List[int], List[str], float]:
         """
-        Adjusts the allele calls so they align with expected repeat units.
+        Aligns each called allele to the nearest repeat boundary, if it deviates significantly.
+        Returns the adjusted alleles, plus any QC flags + penalty score.
         """
-        bin_min, _ = b_range
-        adjusted_call = []
-        qc_flags = []
+        bin_min, bin_max = b_range
+        adjusted_calls: List[int] = []
+        qc_flags: List[str] = []
         score = 0.0
 
-        for allele in allele_call:
+        for allele in allele_positions:
+            # Round to nearest repeat boundary if we know repeat_unit
+            # e.g. nearest multiple of repeat_unit
+            #   offset = (allele - bin_min)
+            #   # approximate # repeats
+            #   n_repeats = round(offset / repeat_unit)
+            #   new_value = bin_min + n_repeats * repeat_unit
             expected_val = bin_min + round((allele - bin_min) / repeat_unit) * repeat_unit
+            # If difference is > bin_tolerance => penalize
             if abs(allele - expected_val) > self.config.bin_tolerance:
                 qc_flags.append(
-                    f"Allele call {allele} in bin {b_range} deviates from expected structure; "
-                    f"adjusted to {expected_val}."
+                    f"Allele call {allele} in bin {b_range} adjusted to {expected_val} (excess dev)."
                 )
                 score += abs(allele - expected_val) * self.config.intensity_weight
-            adjusted_call.append(expected_val)
 
-        return tuple(sorted(adjusted_call)), qc_flags, score
+            adjusted_calls.append(expected_val)
+
+        # Sort ascending
+        adjusted_calls.sort()
+        return adjusted_calls, qc_flags, score
+
+    # ------------------------------------------------------------------
+    # Putting it All Together in process_markers()
+    # ------------------------------------------------------------------
 
     def process_markers(self) -> None:
         """
-        Main method to bin peaks by marker, filter stutters, call alleles,
-        adjust allele calls to the nearest repeat unit, and compute QC.
+        1) Sort peaks by position.
+        2) Bin them according to each MarkerConfig (± tolerance).
+        3) Optionally do stutter filtering.
+        4) Do fraction-based copy assignment up to ploidy.
+        5) Adjust calls to nearest repeat boundary if requested.
+        6) Compute QC + genotype confidence.
+        7) Store results in self.marker_results[marker_name].
         """
         self.marker_results = {}
 
@@ -436,17 +417,18 @@ class FLAProcessor:
 
             qc_flags: List[str] = []
             summary_qc_score = 0.0
-            heterozygous_fraction: Optional[float] = None
 
-            # Sort raw peaks by position
+            # 1) Sort raw peaks by position
             raw_peaks = sorted(self.detected_peaks.get(channel, []), key=lambda p: p.position)
+            
+            # 2) Bin peaks
             current_bin_peaks, qc_flags_bin = self._bin_peaks(raw_peaks, b_range, repeat_unit)
             qc_flags.extend(qc_flags_bin)
 
-            # Marker-specific stutter filtering if parameters are available
-            if repeat_unit is not None and \
-               marker.stutter_ratio_threshold is not None and \
-               marker.stutter_tolerance is not None:
+            # 3) Stutter filtering if user configured it
+            if (repeat_unit is not None and repeat_unit > 0 and
+                marker.stutter_ratio_threshold is not None and
+                marker.stutter_tolerance is not None):
                 current_bin_peaks = self._filter_stutter_peaks(
                     current_bin_peaks,
                     repeat_unit,
@@ -455,39 +437,33 @@ class FLAProcessor:
                     marker.stutter_direction
                 )
 
-            # Baseline ratio threshold for heterozygosity
-            baseline_ratio = (marker.het_ratio_lower_bound
-                              if marker.het_ratio_lower_bound is not None
-                              else self.config.global_het_ratio_lower_bound)
+            # 4) Fraction-based allele assignment
+            allele_positions = self._call_alleles_polyploid(current_bin_peaks)
 
-            # Call alleles
-            allele_calls, binned_peaks, qc_flags_call, score_call, heterozygous_fraction = \
-                self._call_alleles_no_combine(
-                    b_range, current_bin_peaks, marker_name, repeat_unit, baseline_ratio
+            # 5) If there's a repeat_unit, optionally align to boundary
+            parsed_alleles = []
+            if allele_positions and repeat_unit is not None and repeat_unit > 0:
+                adj_alleles, qc_flags_adj, penalty_adj = self._adjust_alleles(
+                    allele_positions, b_range, repeat_unit
                 )
-            qc_flags.extend(qc_flags_call)
-            summary_qc_score += score_call
-
-            # Adjust allele calls to nearest repeat boundary if needed
-            parsed_allele_calls = []
-            if repeat_unit is not None and allele_calls:
-                raw_call = allele_calls[-1]  # last call made
-                adjusted_call, qc_flags_adj, score_adj = self._adjust_alleles(raw_call, b_range, repeat_unit)
                 qc_flags.extend(qc_flags_adj)
-                summary_qc_score += score_adj
-                parsed_allele_calls.append(adjusted_call)
-            elif allele_calls:
-                parsed_allele_calls.append(allele_calls[-1])
+                summary_qc_score += penalty_adj
+                parsed_alleles = adj_alleles
+            else:
+                parsed_alleles = allele_positions
 
-            # Compute genotype confidence
+            # 6) Quick QC confidence
+            # You can add your own ratio or stutter-based penalties if you want
             genotype_confidence = float(np.exp(-self.config.qc_confidence_scale * summary_qc_score))
 
+            # 7) Store results
+            # For debugging: store the final binned peaks as well
+            binned_peaks_info = [vars(p) for p in current_bin_peaks]
             self.marker_results[marker_name] = {
                 "channel": channel,
-                "binned_peaks": binned_peaks,
-                "allele_calls": allele_calls,
-                "parsed_allele_calls": parsed_allele_calls,
-                "heterozygous_fraction": heterozygous_fraction,
+                "binned_peaks": binned_peaks_info,
+                "allele_calls": allele_positions,      # Raw fraction-based calls (unadjusted)
+                "parsed_allele_calls": parsed_alleles, # Possibly adjusted
                 "QC_flags": qc_flags,
                 "QC_score": summary_qc_score,
                 "genotype_confidence": genotype_confidence
@@ -495,15 +471,13 @@ class FLAProcessor:
 
     def process_all(self) -> bool:
         """
-        High-level entry point to load data, detect peaks (with saturation handling),
-        then process markers.
+        High-level entry point: load data, detect peaks, process markers (including bin, stutter, polyploid calls).
         """
         if self.load_fsa():
             self.detect_peaks()
             self.process_markers()
             return True
-        else:
-            return False
+        return False
 
 
 # -------------------- Testing Section --------------------
@@ -512,7 +486,7 @@ if __name__ == "__main__":
     import json
     import os
 
-    parser = argparse.ArgumentParser(description="Process an .fsa file for fragment length analysis with saturation handling.")
+    parser = argparse.ArgumentParser(description="Process an .fsa file for polyploid FLA, with advanced filtering.")
     parser.add_argument("file", type=str, help="Path to the .fsa file")
     args = parser.parse_args()
 

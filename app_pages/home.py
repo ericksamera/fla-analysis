@@ -10,4 +10,4 @@ __comments__ = "stable enough; altered zoom"
 import streamlit as st
 # --------------------------------------------------
 st.title('Welcome to :rainbow: `abi-sauce`!')
-st.markdown('This tool processes pre-parsed FLA JSON files with extended raw data.')    
+st.markdown('This tool processes pre-parsed FLA JSON files with extended raw data.')
