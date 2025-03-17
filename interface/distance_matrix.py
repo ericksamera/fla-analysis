@@ -112,7 +112,7 @@ if not st.session_state.genotype_results_df.empty:
 
     if valid_markers:
         df_valid = df[df["Marker"].isin(valid_markers)]
-        if len(set(list(df_valid["Sample Name"]))) != len(list(df_valid["Sample Name"])):
+        if len(set(list(df_valid["Filename"]))) != len(set(list(df_valid["Sample Name"]))):
             st.warning("Sample naming not unique! Appended a number to make sample names unique. Consider renaming samples in the `Experiment Setup`.")
         df_valid = ensure_unique_sample_names(df_valid)
         with st.expander("Genotypes Table", expanded=False):
