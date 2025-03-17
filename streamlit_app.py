@@ -1,91 +1,91 @@
 #!/usr/bin/env python3
 __description__ =\
 """
-Purpose: Streamlit wrapper for fla-viewer-advanced using preprocessed JSON files.
+streamlit_app.py
+
+Purpose:
+  - Serves as the main Streamlit entry point for the FLA viewer.
+  - Manages navigation and session state.
+  - Uses the new Pages and Navigation system.
 """
 __author__ = "Erick Samera"
 __version__ = "1.2.1"
-__comments__ = "stable enough; altered zoom"
-# --------------------------------------------------
+__comments__ = ""
+
 import streamlit as st
 import pandas as pd
+import json
+
 # --------------------------------------------------
+# Initialize Session State
+# --------------------------------------------------
+session_defaults = {
+    "marker_list": [],
+    "genotype_results_df": pd.DataFrame(),
+    "detected_peaks_df": None,
+    "PROCESSED_FLA": {},
+    "uploaded_files": [],
+    "uploaded_files_id_counter": 0,
+    "config_changed": False,
+    "ploidy": 2,
+    "config_json": {}
+}
 
+for key, value in session_defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-if "marker_list" not in st.session_state:
-    st.session_state.marker_list = []
-if "genotype_results_df" not in st.session_state:
-    st.session_state.genotype_results_df = None
-if "detected_peaks_df" not in st.session_state:
-    st.session_state.detected_peaks_df = None
-if "PROCESSED_FLA" not in st.session_state:
-    st.session_state.PROCESSED_FLA = {}
-if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = []
-if "uploaded_files_id_counter" not in st.session_state:
-    st.session_state.uploaded_files_id_counter = 0
-if "config_changed" not in st.session_state:
-    st.session_state.config_changed = False
-if "marker_list" not in st.session_state:
-    st.session_state.marker_list = []
-if "genotype_results_df" not in st.session_state:
-    st.session_state.genotype_results_df = None
-if "detected_peaks_df" not in st.session_state:
-    st.session_state.detected_peaks_df = None
-if "PROCESSED_FLA" not in st.session_state:
-    st.session_state.PROCESSED_FLA = {}
-if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = []
-if "uploaded_files_id_counter" not in st.session_state:
-    st.session_state.uploaded_files_id_counter = 0
+# --------------------------------------------------
+# Configure Streamlit App Layout
+# --------------------------------------------------
+st.set_page_config(
+    page_title="abi-sauce | FLA-viewer",
+    page_icon=":rainbow:",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-if "ploidy" not in st.session_state:
-    st.session_state.ploidy = 2
-
+# --------------------------------------------------
+# Navigation Setup Using Pages
+# --------------------------------------------------
 def main():
-    st.set_page_config(
-        page_title="abi-sauce | FLA-viewer",
-        page_icon=':rainbow:',
-        layout='wide',
-        initial_sidebar_state='expanded')
-    
-    if "PROCESSED_FLA" not in st.session_state:
-        st.session_state.PROCESSED_FLA = {}
-
     custom_pages = {"Analysis Tools": []}
 
+    # Base pages
     custom_pages["Analysis Tools"].append(
-        st.Page("app_pages/home.py", title="Home", icon=":material/info:")
+        st.Page("interface/home.py", title="Home", icon=":material/info:")
     )
     custom_pages["Analysis Tools"].append(
-        st.Page("app_pages/File_Processor.py", title="Experiment Setup", icon=":material/file_present:")
+        st.Page("interface/file_processor.py", title="Experiment Setup", icon=":material/file_present:")
     )
 
+    # Conditional pages
     if st.session_state.PROCESSED_FLA:
         custom_pages["Analysis Tools"].append(
-            st.Page("app_pages/Peak_Visualizer.py", title="Peak Visualizer", icon=":material/insights:")
+            st.Page("interface/peak_visualizer.py", title="Peak Viewer", icon=":material/insights:")
         )
 
-        if st.session_state.marker_list and isinstance(st.session_state.genotype_results_df, pd.DataFrame):
-            custom_pages["Analysis Tools"].append(
-                st.Page("app_pages/Distance_Matrix.py", title="Distance Matrix", icon=":material/analytics:")
-            )
+    if st.session_state.marker_list and not st.session_state.genotype_results_df.empty:
+        custom_pages["Analysis Tools"].append(
+            st.Page("interface/distance_matrix.py", title="Analysis", icon=":material/analytics:")
+        )
 
+    # Initialize navigation
     pg = st.navigation(custom_pages)
     pg.run()
 
+
     st.divider()
-    st.markdown('Check out my GitHub with the link below for some of my other projects.')
+    st.markdown("Check out my GitHub with the link below for some of my other projects.")
     st.caption(f'[@{__author__}](https://github.com/ericksamera) | v{__version__} | {__comments__}')
 
     with st.sidebar:
-
-        if (st.session_state.ploidy != 2) and st.session_state.marker_list:
+        if st.session_state.ploidy != 2 and st.session_state.marker_list:
             st.error(f"Running in polyploid mode ({st.session_state.ploidy}n)! Very experimental!", icon=":material/warning:")
 
         if st.session_state.config_changed:
             st.warning("Configuration has changed. Please re-analyze your data to apply the new settings.")
-    
+
 # --------------------------------------------------
 if __name__ == "__main__":
     main()
