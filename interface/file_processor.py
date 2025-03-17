@@ -59,10 +59,16 @@ def clear_markers_dialog():
 
     col_yes, col_no = st.columns(2)
 
+    to_remove = {
+        "config_json": {},
+        "marker_list": [],
+        "pcoa_results": None
+    }
+
     with col_yes:
         if st.button("Yes", use_container_width=True):
-            st.session_state.config_json = {}
-            st.session_state.marker_list = []
+            for key, value in to_remove.items():
+                st.session_state[key] = value
             st.rerun()
     
     with col_no:
@@ -81,7 +87,7 @@ def clear_files_dialog():
 
     col_yes, col_no = st.columns(2)
 
-    file_manager_defaults = {
+    to_remove = {
         "genotype_results_df": pd.DataFrame(),
         "detected_peaks_df": pd.DataFrame(),
         "PROCESSED_FLA": {},
@@ -91,7 +97,7 @@ def clear_files_dialog():
 
     with col_yes:
         if st.button("Yes", use_container_width=True):
-            for key, value in file_manager_defaults.items():
+            for key, value in to_remove.items():
                 st.session_state[key] = value
             st.rerun()
     
