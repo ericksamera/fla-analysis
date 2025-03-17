@@ -26,7 +26,7 @@ from core.config_models import MarkerConfig
 
 # --------------------- Utility Functions ---------------------
 
-def perform_pcoa(distance_matrix, n_components=2):
+def perform_pcoa(distance_matrix: pd.DataFrame, n_components: int = 2) -> Tuple[np.ndarray, np.ndarray]:
     """
     Perform Principal Coordinates Analysis (PCoA) on the distance matrix and
     return the coordinates and explained variance ratios.
@@ -211,7 +211,6 @@ class NeiDistanceMetric(GeneticDistanceMetric):
     Computes a simple Nei-like genetic distance based on the proportion of shared alleles.
     """
     def compute_distance(self, geno1: Any, geno2: Any, marker: str, marker_repeat: int = 1) -> float:
-        # For Nei's distance, the repeat unit is not used.
         alleles1 = flatten_if_nested(geno1)
         alleles2 = flatten_if_nested(geno2)
         if not alleles1 or not alleles2:
