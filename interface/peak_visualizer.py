@@ -51,7 +51,6 @@ class App:
         (if available) or load a preprocessed JSON file.
         """
         if st.session_state.PROCESSED_FLA:
-            st.divider()
             with st.expander("**TRACE FILES:**", expanded=True):
                 # Use the dictionary keys as the list of trace names.
                 trace_names = list(st.session_state.PROCESSED_FLA.keys())
@@ -75,9 +74,42 @@ class App:
                         })
                     if genotype_data:
                         st.divider()
-                        st.markdown("### **Predicted Genotypes**")
-                        df_genotypes = pd.DataFrame(genotype_data)
-                        st.dataframe(df_genotypes, use_container_width=True, hide_index=True)
+                        with st.expander("**PREDICTED GENOTYPES:**", expanded=True):
+                            df_genotypes = pd.DataFrame(genotype_data)
+                            st.dataframe(df_genotypes, use_container_width=True, hide_index=True)
+                    
+                    with st.expander("**QC FLAGS:**", expanded=True):
+                        icon_mapping = {
+                            'were removed': ':material/filter_alt:',
+                            'but within': ':material/auto_fix_normal:',
+                            'homozygous': ':material/mode:',
+                        }
+                        qc_marker_results = trace_data["marker_results"]
+                        markers = list(qc_marker_results.keys())
+                        if markers:
+                            if len(markers) < 5:
+                                tabs = st.tabs(markers)
+                                for marker, tab in zip(markers, tabs):
+                                    with tab:
+                                        result = qc_marker_results[marker]
+                                        qc_flags = result.get("QC_flags", [])
+                                        st.write(f"**{marker} ({result.get('channel', '')}):**")
+                                        if qc_flags:
+                                            for flag in qc_flags:
+                                                icon = next((icon for substr, icon in icon_mapping.items() if substr in flag), None)
+                                                st.warning(flag, icon=icon)
+                                        else:
+                                            st.success("No flags!", icon=':material/check_circle_outline:')
+                            else:
+                                selected_marker = st.selectbox("Select Marker", label_visibility="collapsed", options=list(qc_marker_results.keys()), format_func=lambda x: f"{x} ({qc_marker_results[x]['channel']})")
+                                result = qc_marker_results[selected_marker]
+                                qc_flags = result.get("QC_flags", [])
+                                if qc_flags:
+                                    for flag in qc_flags:
+                                        icon = next((icon for substr, icon in icon_mapping.items() if substr in flag), "")
+                                        st.warning(flag, icon=icon)
+                                else:
+                                    st.success("No flags!", icon=':material/check_circle_outline:')
 
     def _hex_to_rgb(self, hex_color: str):
         """
@@ -189,7 +221,7 @@ class App:
             ))
 
         fig.update_layout(
-            xaxis=dict(range=[0, max_x], title="Size (bp)"),
+            xaxis=dict(range=[0, 610], title="Size (bp)"),
             yaxis=dict(range=[0, max_y], title="Intensity"),
             margin=dict(l=0, r=0, t=0, b=0),
             legend_title_text="Channels",

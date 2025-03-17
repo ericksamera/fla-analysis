@@ -140,7 +140,8 @@ def display_uploaded_files_table():
             use_container_width=True,
             num_rows="fixed",
             disabled=["Filename"],
-            column_config={"delete": "Delete?", "Sample Name": "Sample Name"}
+            column_config={"delete": "Delete?", "Sample Name": "Sample Name"},
+            on_change=mark_config_changed,
         )
 
         # Update session state with edited sample names
@@ -282,7 +283,7 @@ def display_marker_configuration():
             st.rerun()
 
     with col_save:
-        if st.button("", icon=":material/save:", use_container_width=True):
+        if st.button("", icon=":material/save:", use_container_width=True, disabled = not bool(st.session_state.marker_list)):
             st.session_state.config_json = st.session_state.marker_list
 
     with col_right:
@@ -611,10 +612,11 @@ def run():
         processor_class, config_obj = choose_processor_and_config(is_poly, chosen_ploidy, adv_cfg)
         process_all_files(processor_class, config_obj, is_poly)
         st.session_state.config_changed = False
+        st.session_state.pcoa_results = None
         st.rerun()
 
     if not st.session_state.genotype_results_df.empty:
-        st.subheader("Genotype Results")
-        st.dataframe(st.session_state.genotype_results_df, use_container_width=True, column_order=(column for column in st.session_state.genotype_results_df.columns if column != 'Filename'))
+        with st.expander("Genotyping table", expanded=False):
+            st.dataframe(st.session_state.genotype_results_df, use_container_width=True, column_order=(column for column in st.session_state.genotype_results_df.columns if column != 'Filename'))
 
 run()
