@@ -15,6 +15,10 @@ import plotly.express as px
 import plotly.figure_factory as ff
 from dataclasses import dataclass
 
+import io
+import csv
+import pandas as pd
+
 import scipy.cluster.hierarchy as sch
 
 @dataclass
@@ -91,6 +95,67 @@ def compute_distance_matrix_dialog(df_valid, marker_configs, distance_method, me
 # -----------------------------------------------------------------------------
 # Helper functions for visualization (PCoA and dendrogram)
 # -----------------------------------------------------------------------------
+def convert_to_genalex_csv(df):
+    """
+    Converts a genotype DataFrame into a GenAlEx-formatted CSV string.
+    Assumes the input DataFrame df has at least the following columns:
+      - "Sample Name" : sample identifier
+      - "Marker"      : locus name
+      - "Genotype"    : a tuple/list (or string that can be evaluated) containing two allele values
+      - "Population"  : (optional) population assignment; if missing, defaults to "Unknown"
+    
+    The GenAlEx CSV format will be:
+      - First row: metadata row (blank, num_samples, num_loci, then blanks)
+      - Second row: header row (Sample No., Pop, then for each locus: Marker_1, Marker_2)
+      - Subsequent rows: one row per sample.
+    """
+    # Get sorted unique markers
+    unique_markers = sorted(df["Marker"].unique())
+    unique_samples = df["Sample Name"].unique()
+    optional_title = "TITLE"
+
+    csv_like = []
+    params_row = f"{len(unique_markers)},{len(unique_samples)},1,{len(unique_samples)}"
+    a2_row = f"{optional_title},,,POP1,"
+    header = ["SAMPLE", "POP"]
+    for marker in unique_markers:
+        header += [marker, ""]
+    header_row = ','.join(header)
+
+    csv_like += [params_row.split(',')]
+    csv_like += [a2_row.split(',')]
+    csv_like += [header_row.split(',')]
+
+    for sample in unique_samples:
+        sample_df = df[df["Sample Name"] == sample]
+        row = [sample, "1"]
+        for marker in unique_markers:
+            row_data = sample_df[sample_df["Marker"] == marker]
+            if not row_data.empty:
+                if not row_data["Genotype"].iloc[0]: row.extend(["", ""])
+                else:
+                    if not row_data["Genotype"].iloc[0][0]: row.extend(["", ""])
+                    else:
+                        genotype = row_data["Genotype"].iloc[0][0]
+                        if isinstance(genotype, (list, tuple)) and len(genotype) >= 2:
+                            row.extend([*genotype])
+        csv_like.append(row)
+
+    
+    # Write to a CSV string using tab as delimiter (or comma if you prefer)
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=",")
+    blank_header_row = ["\u200b"*(i+1) for i in range(1 + (2 + (2 * len(unique_markers))))]
+    writer.writerow(blank_header_row)
+    for row in csv_like:
+        writer.writerow([i if i else 0 for i in row])
+    csv_text = output.getvalue()
+    output.close()
+    return csv_text
+
+def get_genalex_df_from_csv(csv_text):
+    # Read CSV with tab delimiter and use the second row as header
+    return pd.read_csv(io.StringIO(csv_text), sep=",")
 
 def create_dendrogram(distance_matrix, labels, linkage_method="single"):
     """
@@ -115,9 +180,27 @@ if not st.session_state.genotype_results_df.empty:
         if len(set(list(df_valid["Filename"]))) != len(set(list(df_valid["Sample Name"]))):
             st.warning("Sample naming not unique! Appended a number to make sample names unique. Consider renaming samples in the `Experiment Setup`.")
         df_valid = ensure_unique_sample_names(df_valid)
-        with st.expander("Genotypes Table", expanded=False):
-            st.dataframe(df_valid, use_container_width=True,
-                         column_order=(column for column in df_valid.columns if column != 'Filename'))
+
+        data_format = st.selectbox("Select Data Format", ["Standard Table", "GenAlEx Format"])
+
+        if data_format == "Standard Table":
+            st.dataframe(df_valid, use_container_width=True, column_order=(column for column in df_valid.columns if column != 'Filename'))
+        elif data_format == "GenAlEx Format":
+            # Convert the original DataFrame to a GenAlEx-formatted CSV string
+            genalex_csv_text = convert_to_genalex_csv(df_valid)
+            # Parse the CSV string back into a DataFrame (ignoring the metadata row if desired)
+            genalex_df = get_genalex_df_from_csv(genalex_csv_text)
+            st.dataframe(genalex_df, use_container_width=True, hide_index=True)
+            
+            # Remove the first row from the CSV text for download
+            download_csv_text = "\n".join(genalex_csv_text.splitlines()[1:])
+            
+            st.download_button(
+                label="Download GenAlEx File", 
+                data=download_csv_text, 
+                file_name="genalex.csv", 
+                mime="text/csv"
+            )
     else:
         st.info("No markers have genotype data for at least two individuals.")
         st.stop()
