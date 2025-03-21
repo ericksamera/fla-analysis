@@ -12,7 +12,7 @@ of MarkerConfig objects and a chosen distance metric. It computes a distance mat
 averaging over markers with data in common.
 """
 __author__ = "Erick Samera"
-__version__ = "1.2.1"
+__version__ = "1.0.0"
 __comments__ = ""
 
 import pandas as pd

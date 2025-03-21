@@ -123,7 +123,6 @@ def upload_files_dialog():
                 st.session_state.uploaded_files_id_counter += 1
                 st.session_state.uploaded_files.append({
                     "name": file.name,
-                    "sample_name": file.name.split('_')[0],
                     "file": file
                 })
         st.success("Files uploaded successfully!")
@@ -137,7 +136,7 @@ def display_uploaded_files_table():
         st.info("Upload some files to get started!")
     else:
         df_uploaded_files = pd.DataFrame([
-            {"Filename": f["name"], "Sample Name": f["sample_name"], "delete": False}
+            {"Filename": f["name"], "delete": False}
             for f in st.session_state.uploaded_files
         ])
 
@@ -146,16 +145,9 @@ def display_uploaded_files_table():
             use_container_width=True,
             num_rows="fixed",
             disabled=["Filename"],
-            column_config={"delete": "Delete?", "Sample Name": "Sample Name"},
+            column_config={"delete": "Delete?"},
             on_change=mark_config_changed,
         )
-
-        # Update session state with edited sample names
-        for file_dict in st.session_state.uploaded_files:
-            if file_dict["name"] in edited_df["Filename"].values:
-                file_dict["sample_name"] = edited_df.loc[
-                    edited_df["Filename"] == file_dict["name"], "Sample Name"
-                ].values[0]
 
         # Process deletions
         if "delete" in edited_df.columns:
@@ -533,7 +525,6 @@ def process_all_files(processor_class, config, is_poly: bool):
                     flags = mk_data.get("QC_flags", [])
                     genotype_rows.append({
                         "Filename": file_dict["name"],
-                        "Sample Name": file_dict["sample_name"],
                         "Marker": mk_name,
                         "Genotype": genotype,
                         "Genotype Confidence": f"{conf:.3f}" if conf is not None else "n/a",
@@ -558,7 +549,6 @@ def process_all_files(processor_class, config, is_poly: bool):
                     flags = mk_data.get("QC_flags", [])
                     genotype_rows.append({
                         "Filename": file_dict["name"],
-                        "Sample Name": file_dict["sample_name"],
                         "Marker": mk_name,
                         "Genotype": genotype,
                         "Genotype Confidence": f"{conf:.3f}" if conf is not None else "n/a",

@@ -58,7 +58,13 @@ def main():
         st.Page("interface/file_processor.py", title="Experiment Setup", icon=":material/file_present:")
     )
 
+
     # Conditional pages
+    if st.session_state.uploaded_files:
+        custom_pages["Analysis Tools"].append(
+            st.Page("interface/sample_overview.py", title="Sample Overview", icon=":material/file_present:")
+        )
+
     if st.session_state.PROCESSED_FLA:
         custom_pages["Analysis Tools"].append(
             st.Page("interface/peak_visualizer.py", title="Peak Viewer", icon=":material/insights:")
