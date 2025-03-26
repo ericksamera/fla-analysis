@@ -1,21 +1,22 @@
-#!/usr/bin/env python3
-__description__ =\
-"""
-interface/home.py
-
-Purpose:
-  - Serves as the homepage for the FLA Viewer application.
-  - Provides a brief introduction to the tool.
-"""
-__author__ = "Erick Samera"
-__version__ = "1.0.0"
-__comments__ = "Works"
+# interface/home.py
 
 import streamlit as st
 
 def run():
-    """Renders the home page."""
-    st.title('Welcome to :rainbow: `abi-sauce`!')
-    st.markdown('This tool processes pre-parsed FLA JSON files with extended raw data.')
+    st.title("🌈 Welcome to `abi-sauce`")
+    st.markdown(
+        """
+        This app is designed for visualizing and analyzing **Fragment Length Analysis (FLA)** data.
+
+        **Features:**
+        - Upload `.fsa` trace files
+        - Set marker bin ranges and repeat units
+        - Automatically call diploid genotypes with QC
+        - Visualize peaks and genotype results
+        - Perform clustering & population analysis (PCoA, dendrograms)
+
+        **Next step:** Go to the **Upload + Setup** page to begin.
+        """
+    )
 
 run()
