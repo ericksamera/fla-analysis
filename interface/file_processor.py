@@ -7,7 +7,6 @@ from fla_pipeline.core.fsa_loader import load_fsa
 from fla_pipeline.core.peak_detector import detect_peaks
 import os
 import tempfile
-import uuid
 import json
 
 from fla_pipeline.pipeline import run_pipeline
@@ -32,14 +31,17 @@ def run():
             sample_id = os.path.splitext(f.name)[0]
             sample = Sample(sample_id=sample_id, file_path=temp_path)
             try:
+                sample.metadata.setdefault("Sample Name", sample_id.split("_")[0])
+                sample.metadata.setdefault("Population", "Unknown")
                 sample.fsa_data = load_fsa(temp_path)
-                peak_dict, max_liz = detect_peaks(
+                peak_dict, max_liz, suppressed_peaks = detect_peaks(
                     sample.fsa_data["smap"],
                     sample.fsa_data["channels"],
                     config=GlobalConfig()
                 )
+                sample.suppressed_peaks = suppressed_peaks
                 sample.peaks = peak_dict
-                sample.metadata["max_liz_intensity"] = max_liz
+                sample.run_metrics["max_liz_intensity"] = max_liz
                 st.session_state.samples[sample_id] = sample
                 st.session_state.uploaded_files.append(sample_id)
             except Exception as e:
@@ -94,7 +96,7 @@ if st.session_state.samples and st.session_state.marker_list:
                 sample.marker_results = {
                     k: GenotypeResult(**v) for k, v in result["marker_results"].items()
                 }
-                sample.metadata["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
+                sample.run_metrics["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
 
                 # Flatten into one-row-per-marker format for DataFrame
                 for marker, geno in sample.marker_results.items():

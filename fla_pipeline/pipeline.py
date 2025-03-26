@@ -18,7 +18,7 @@ def run_pipeline(
     smap = fsa_data["smap"]
     channels = fsa_data["channels"]
 
-    peak_dict, max_liz_intensity = detect_peaks(smap, channels, config)
+    peak_dict, max_liz_intensity, suppressed_peaks = detect_peaks(smap, channels, config)
 
     marker_results: Dict[str, dict] = {}
 
@@ -64,5 +64,6 @@ def run_pipeline(
             ch: [vars(p) for p in pk_list] for ch, pk_list in peak_dict.items()
         },
         "marker_results": marker_results,
-        "max_liz_intensity": max_liz_intensity
+        "max_liz_intensity": max_liz_intensity,
+        "suppressed_peaks": suppressed_peaks
     }

@@ -3,14 +3,8 @@
 import streamlit as st
 from interface.backend.session import initialize_session_state
 
-# -------------------------------------
-# 🔧 Session Initialization
-# -------------------------------------
 initialize_session_state()
 
-# -------------------------------------
-# ⚙️ Streamlit App Setup
-# -------------------------------------
 st.set_page_config(
     page_title="abi-sauce | FLA viewer",
     page_icon="🌈",
@@ -36,13 +30,17 @@ def main():
 
     if st.session_state.samples:
         custom_pages["FLA Analysis"].append(
+            st.Page("interface/sample_metadata.py", title="Sample Meta", icon="📈")
+        )
+
+        custom_pages["FLA Analysis"].append(
             st.Page("interface/peak_visualizer.py", title="Peak Viewer", icon="📈")
         )
 
-    # if not st.session_state.genotype_results_df.empty:
-    #     custom_pages["FLA Analysis"].append(
-    #         st.Page("interface/distance_matrix.py", title="Analysis", icon="📊")
-    #     )
+    if not st.session_state.genotype_results_df.empty:
+        custom_pages["FLA Analysis"].append(
+            st.Page("interface/population_analysis.py", title="Analysis", icon="📊")
+        )
 
     # Register pages
     page = st.navigation(custom_pages)

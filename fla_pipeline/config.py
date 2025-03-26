@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 class GlobalConfig(BaseModel):
     ploidy: int = 2
     min_peak_height: int = 1000
-    min_peak_position: int = 15
+    min_peak_position: int = 5
     relative_peak_threshold: float = 0.3
     bin_tolerance: int = 1
     bin_extend: int = 2

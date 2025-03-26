@@ -32,26 +32,32 @@ def detect_peaks(
             if size < config.min_peak_position:
                 continue
 
-            intensity = intensity_array[idx]
-            saturated = intensity >= config.instrument_saturation_value
+            raw_intensity = intensity_array[idx]
+            saturated = raw_intensity >= config.instrument_saturation_value
 
             if saturated:
-                corrected = correct_if_saturated(idx, smap, intensity_array)
-                note = "Saturated; intensity corrected via Gaussian fit."
-                intensity = corrected
+                corrected_intensity, corrected_position, width = correct_if_saturated(idx, smap, intensity_array)
+                note = f"Saturated; corrected via Gaussian fit (μ={corrected_position:.2f}, FWHM={width:.2f})"
             else:
+                corrected_intensity = raw_intensity
+                corrected_position = size
+                width = 0.0
                 note = ""
 
             peak = Peak(
-                position=round(float(size), 2),
-                intensity=round(float(intensity), 2),
+                position=round(corrected_position, 2),
+                intensity=round(corrected_intensity, 2),
                 saturated=saturated,
                 note=note
             )
+            peak.corrected_intensity = round(corrected_intensity, 2)
+            peak.width = width
+
             peaks.append(peak)
 
 
-        peak_dict[ch_name] = peaks
+            peak_dict[ch_name] = peaks
+
 
     # Step 2: Cross-channel artifact detection
     all_peaks = []
@@ -66,13 +72,29 @@ def detect_peaks(
         position_map[key].append((ch, intensity, pk))
 
 
-
+    suppressed_peaks = defaultdict(list)
     for shared_pos, peak_group in position_map.items():
         if len(peak_group) < 2:
             continue
 
-        peak_group.sort(key=lambda x: x[1], reverse=True)
-        dominant_ch, dom_intensity, dom_pk = peak_group[0]
+        non_liz_peaks = [item for item in peak_group if item[0] != "LIZ"]
+
+        if non_liz_peaks:
+            candidates = sorted(
+                non_liz_peaks,
+                key=lambda x: getattr(x[2], "corrected_intensity", x[1]),
+                reverse=True
+            )
+            dominant_ch, dom_intensity, dom_pk = candidates[0]
+
+            # Only proceed if dominant peak is saturated or very wide (flat)
+            if not dom_pk.saturated and dom_pk.width < 0.2:
+                continue
+        else:
+            continue  # skip suppression entirely if only L
+
+
+
 
         shared_rounded = round(dom_pk.position, 1)
 
@@ -83,18 +105,12 @@ def detect_peaks(
             ratio = intensity / dom_intensity if dom_intensity else 0
             if ratio >= 0.1:
                 pk.note += f" Suppressed: pull-up from {dominant_ch}, ratio={ratio:.2f}."
+                suppressed_peaks[ch].append((pk.position, intensity))
 
-                print(f"SUPPRESSING {ch} peak @ {pk.position:.3f} (rounded: {round(pk.position,1)}) due to pull-up from {dominant_ch}")
-
-                # Remove peak by rounded position
                 peak_dict[ch] = [
                     p for p in peak_dict[ch] if round(p.position, 1) != shared_rounded
                 ]
 
-    print("\n[DEBUG] Final LIZ Peaks:")
-    for p in peak_dict.get("LIZ", []):
-        print(f"  LIZ @ {p.position:.3f} | Intensity: {p.intensity:.1f} | Note: {p.note}")
-
     liz_peaks = peak_dict.get("LIZ", [])
     max_liz_intensity = max((p.intensity for p in liz_peaks), default=0.0)
-    return peak_dict, max_liz_intensity
+    return peak_dict, max_liz_intensity, suppressed_peaks
