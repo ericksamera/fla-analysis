@@ -22,6 +22,8 @@ st.set_page_config(
 # 📚 Custom Navigation (No pages/ dir)
 # -------------------------------------
 def main():
+    initialize_session_state()
+
     custom_pages = {"FLA Analysis": []}
 
     custom_pages["FLA Analysis"].append(

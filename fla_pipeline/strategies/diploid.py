@@ -37,7 +37,7 @@ class BaseDiploidCaller:
 @register_diploid_strategy("probabilistic")
 class ProbabilisticCaller(BaseDiploidCaller):
 
-    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig) -> GenotypeResult:
+    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig, max_liz_intensity: float = 0.0) -> GenotypeResult:
         if not peaks:
             return GenotypeResult(marker=marker.marker, alleles=[], strategy="probabilistic", qc_flags=["No peaks to call."])
 
@@ -46,7 +46,7 @@ class ProbabilisticCaller(BaseDiploidCaller):
         if len(peaks) == 1:
             return self.fallback_homozygote(marker, peaks, "probabilistic")
 
-        evaluator = GenotypeEvaluator(config, marker)
+        evaluator = GenotypeEvaluator(config, marker, max_liz_intensity=max_liz_intensity)
         top_n = min(10, len(peaks))
 
         results = []

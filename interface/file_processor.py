@@ -31,14 +31,19 @@ def run():
             temp_path = save_temp_file(f)
             sample_id = os.path.splitext(f.name)[0]
             sample = Sample(sample_id=sample_id, file_path=temp_path)
-            sample.fsa_data = load_fsa(temp_path)
-            sample.peaks = detect_peaks(
-                sample.fsa_data["smap"],
-                sample.fsa_data["channels"],
-                config=GlobalConfig()
-            )
-            st.session_state.samples[sample_id] = sample
-            st.session_state.uploaded_files.append(sample_id)
+            try:
+                sample.fsa_data = load_fsa(temp_path)
+                peak_dict, max_liz = detect_peaks(
+                    sample.fsa_data["smap"],
+                    sample.fsa_data["channels"],
+                    config=GlobalConfig()
+                )
+                sample.peaks = peak_dict
+                sample.metadata["max_liz_intensity"] = max_liz
+                st.session_state.samples[sample_id] = sample
+                st.session_state.uploaded_files.append(sample_id)
+            except Exception as e:
+                st.error(f"Error processing {f.name}: {e}")
 
         st.success(f"Uploaded and parsed {len(uploaded)} file(s).")
         st.rerun()
@@ -89,13 +94,14 @@ if st.session_state.samples and st.session_state.marker_list:
                 sample.marker_results = {
                     k: GenotypeResult(**v) for k, v in result["marker_results"].items()
                 }
+                sample.metadata["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
 
                 # Flatten into one-row-per-marker format for DataFrame
                 for marker, geno in sample.marker_results.items():
                     all_calls.append({
                         "Sample Name": sample_id,
                         "Marker": marker,
-                        "Alleles": geno.alleles,
+                        "Genotype": "/".join([str(i) for i in geno.alleles]),
                         "Confidence": geno.confidence,
                         "QC Flags": "; ".join(geno.qc_flags),
                     })

@@ -13,6 +13,7 @@ class PeakVisualizerApp:
             "PET": "red",
             "LIZ": "orange"
         }
+        self.min_height = getattr(st.session_state.config, "min_peak_height", 0)
 
     def render(self):
         st.title("📈 Peak Visualizer")
@@ -67,7 +68,7 @@ class PeakVisualizerApp:
                     "Marker": marker_name,
                     "Dye": mcfg.get("channel", "-"),
                     "Repeat": mcfg.get("repeat_unit", "-"),
-                    "Alleles": ", ".join(map(str, result.alleles)) if result.alleles else "-",
+                    "Genotype": "/".join(map(str, result.alleles)) if result.alleles else "-",
                     "Conf.": round(result.confidence, 3)
                 })
 
@@ -86,6 +87,7 @@ class PeakVisualizerApp:
         smap = self.sample.fsa_data["smap"]
         channels = self.sample.fsa_data["channels"]
         peaks = self.sample.peaks
+
         fig = go.Figure()
 
         # Bin and tolerance overlays
@@ -129,7 +131,6 @@ class PeakVisualizerApp:
 
     def _plot_per_channel(self):
         st.subheader("🧬 Per-Channel Views")
-        show_all = st.checkbox("Show all peaks (not just above average)", value=False)
 
         smap = self.sample.fsa_data["smap"]
         channels = self.sample.fsa_data["channels"]
@@ -158,30 +159,65 @@ class PeakVisualizerApp:
                     fig.add_vrect(x0=bmin, x1=bmax, fillcolor=color, opacity=0.05, layer="below", line_width=0)
                     fig.add_vrect(x0=bmin - tol, x1=bmax + tol, fillcolor=color, opacity=0.05, layer="below", line_width=0)
 
-            if ch_peaks:
-                points = [(p.position, p.intensity) for p in ch_peaks if p.position > 50]
-                if not points:
-                    continue
+            visible_peaks = ch_peaks if ch == "LIZ" else [p for p in ch_peaks if p.intensity >= self.min_height]
 
-                avg_intensity = sum(y for _, y in points) / len(points)
-                if not show_all:
-                    pass
+            if visible_peaks:
+                # Annotate each peak with any marker it falls within
+                annotations = []
+                for p in visible_peaks:
+                    matched = []
+                    for marker in st.session_state.marker_list:
+                        if marker["channel"] != ch:
+                            continue
+                        bmin, bmax = marker.get("bins", [0, 0])
+                        repeat = marker.get("repeat_unit", 1)
+                        tol = st.session_state.get("bin_tolerance", 2) * repeat
+                        if (bmin - tol) <= p.position <= (bmax + tol):
+                            matched.append(marker["marker"])
+                    marker_note = ", ".join(matched) if matched else "—"
+                    annotations.append(f"Size: {p.position} bp<br>Height: {p.intensity}<br>Marker: {marker_note}")
 
                 fig.add_trace(go.Scatter(
-                    x=[x for x, _ in points],
-                    y=[y for _, y in points],
+                    x=[p.position for p in visible_peaks],
+                    y=[p.intensity for p in visible_peaks],
                     mode="markers",
-                    name=f"{ch} peaks",
-                    marker=dict(color=color, size=4),
-                    hovertemplate="Size: %{x} bp<br>Height: %{y}"
+                    name=f"({ch})",
+                    marker=dict(color=color, size=6),
+                    showlegend=False,
+                    hoverinfo="text",
+                    text=annotations
                 ))
+
+            marker_bins = [
+                (m.get("bins", [0, 0]), m.get("repeat_unit", 1))
+                for m in st.session_state.marker_list if m.get("channel") == ch
+            ]
+
+            if marker_bins:
+                min_start = min(bmin for (bmin, _), _ in marker_bins)
+                max_end = max(bmax for (_, bmax), _ in marker_bins)
+                max_repeat = max(rpt for _, rpt in marker_bins)
+                pad = 10 * max_repeat
+                x_range = [max(0, min_start - pad), max_end + pad]
+
+            elif ch_peaks:
+                # Fallback: use actual detected peaks
+                peak_positions = [p.position for p in ch_peaks]
+                pad = 10  # or make configurable
+                x_range = [max(0, min(peak_positions) - pad), max(peak_positions) + pad]
+
+            else:
+                # Fallback: full smap
+                x_range = [min(smap), max(smap)]
 
             fig.update_layout(
                 xaxis_title="Size (bp)",
                 yaxis_title="Intensity",
-                height=250,
-                margin=dict(t=10, b=10),
+                height=200,
+                margin=dict(t=5, b=5),
+                xaxis_range=x_range
             )
+
             st.plotly_chart(fig, use_container_width=True)
 
     def _get_color(self, channel: str) -> str:

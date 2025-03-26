@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field, model_validator
 
 class GlobalConfig(BaseModel):
     ploidy: int = 2
-    min_peak_height: int = 200
-    min_peak_position: int = 100
+    min_peak_height: int = 1000
+    min_peak_position: int = 15
     relative_peak_threshold: float = 0.3
     bin_tolerance: int = 1
     bin_extend: int = 2
@@ -20,6 +20,7 @@ class GlobalConfig(BaseModel):
     qc_confidence_scale: float = 0.75
     diploid_strategy: str = "probabilistic"  # "strict_stutter" or "lenient_ratio"
 
+    liz_peak_penalty_ratio: float = 1.25
     min_genotype_confidence: float = 0.0
     stutter_step_decay: float = 0.5
 

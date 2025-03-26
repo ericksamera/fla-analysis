@@ -6,11 +6,12 @@ from fla_pipeline.utils.qc_score import QCScore
 
 
 class GenotypeEvaluator:
-    def __init__(self, config: GlobalConfig, marker: MarkerConfig):
+    def __init__(self, config: GlobalConfig, marker: MarkerConfig, max_liz_intensity: float = 0.0):
         self.config = config
         self.marker = marker
         self.qc = QCScore(config)
         self.qc_flags: List[str] = []
+        self.max_liz_intensity = max_liz_intensity
 
     def evaluate_pair(self, pk1: Peak, pk2: Peak, all_peaks: List[Peak]) -> GenotypeResult:
         pos1, pos2 = round(pk1.position), round(pk2.position)
@@ -31,6 +32,17 @@ class GenotypeEvaluator:
             self.qc.add(penalty, "Distracting secondary peaks", weight=self.config.ratio_weight)
 
         confidence = min(self.qc.compute_confidence(), 0.95)
+
+        if self.max_liz_intensity:
+            allele_peak_min = min(pk1.intensity, pk2.intensity)
+            liz_ratio = allele_peak_min / self.max_liz_intensity
+            threshold_ratio = self.config.liz_peak_penalty_ratio
+
+            if liz_ratio < threshold_ratio:
+                penalty = (threshold_ratio - liz_ratio) * 0.25  # scale the penalty
+                confidence = max(0.0, confidence - penalty)
+                self.qc_flags.append(f"Low relative to LIZ: {liz_ratio:.2f} < {threshold_ratio} (-{penalty:.2f})")
+
 
         return GenotypeResult(
             marker=self.marker.marker,
