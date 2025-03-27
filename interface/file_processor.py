@@ -13,6 +13,49 @@ from fla_pipeline.core.peak_detector import detect_peaks
 from fla_pipeline.pipeline import run_pipeline
 
 
+@st.dialog("Marker Overrides", width="large")
+def edit_marker_overrides_dialog(index: int):
+    marker = st.session_state.marker_list[index]
+    overrides = marker.setdefault("overrides", {})
+
+    st.markdown(f"### Editing Overrides for `{marker['marker']}`")
+
+    overrides["relative_peak_threshold"] = st.slider(
+        "Relative Peak Threshold",
+        min_value=0.01, max_value=1.0,
+        value=overrides.get("relative_peak_threshold", st.session_state.config.relative_peak_threshold),
+        key=f"override_rel_thresh_dialog_{index}"
+    )
+
+    overrides["stutter_ratio_threshold"] = st.slider(
+        "Stutter Ratio Threshold",
+        min_value=0.01, max_value=1.0,
+        value=overrides.get("stutter_ratio_threshold", 0.15),
+        key=f"override_stutter_ratio_dialog_{index}"
+    )
+
+    overrides["stutter_tolerance"] = st.slider(
+        "Stutter Tolerance",
+        min_value=0.1, max_value=5.0,
+        value=overrides.get("stutter_tolerance", 1.0),
+        key=f"override_stutter_tolerance_dialog_{index}"
+    )
+
+    direction = overrides.get("stutter_direction", "both")
+    overrides["stutter_direction"] = st.selectbox(
+        "Stutter Direction",
+        options=["left", "both", "right"],
+        index=["left", "both", "right"].index(direction),
+        key=f"override_stutter_dir_dialog_{index}"
+    )
+
+    if st.button("✅ Save and Close"):
+        st.session_state.marker_list[index]["overrides"] = overrides
+        st.session_state.config_changed = True
+        st.rerun()
+
+
+
 def save_temp_file(uploaded_file):
     suffix = "." + uploaded_file.name.split(".")[-1]
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
@@ -59,29 +102,28 @@ def marker_config_ui():
 
     st.markdown("### Edit Markers")
     for i, marker in enumerate(st.session_state.marker_list):
-        cols = st.columns([2, 2, 1, 1, 1, 1])
+        cols = st.columns([2, 2, 1, 1, 1, 2], vertical_alignment="bottom")
         marker["marker"] = cols[0].text_input("Marker", value=marker["marker"], key=f"marker_{i}")
-        marker["channel"] = cols[1].selectbox("Channel", ["6-FAM", "VIC", "NED", "PET", "LIZ"], index=["6-FAM", "VIC", "NED", "PET", "LIZ"].index(marker["channel"]), key=f"channel_{i}")
+        marker["channel"] = cols[1].selectbox("Channel", ["6-FAM", "VIC", "NED", "PET"], index=["6-FAM", "VIC", "NED", "PET",].index(marker["channel"]), key=f"channel_{i}")
         marker["repeat_unit"] = cols[2].number_input("Repeat", 1, 10, value=marker.get("repeat_unit", 1), key=f"repeat_{i}")
         marker["bins"] = (
             cols[3].number_input("Min", 30, 500, value=marker["bins"][0], key=f"bmin_{i}"),
             cols[4].number_input("Max", 30, 500, value=marker["bins"][1], key=f"bmax_{i}")
         )
         with cols[5]:
-            if st.button("🗑️", key=f"remove_marker_{i}"):
-                st.session_state.marker_list.pop(i)
-                st.rerun()
+            if st.button("Options", key=f"edit_overrides_{i}", use_container_width=True):
+                edit_marker_overrides_dialog(i)
 
         # Optional overrides UI
-        if f"show_overrides_{i}" not in st.session_state:
-            st.session_state[f"show_overrides_{i}"] = False
-        with st.expander("⚙️ Marker Overrides", expanded=False):
-            marker.setdefault("overrides", {})
-            marker["overrides"]["relative_peak_threshold"] = st.slider(
-                f"[{marker['marker']}] Rel. Threshold", 0.01, 1.0,
-                value=marker["overrides"].get("relative_peak_threshold", st.session_state.config.relative_peak_threshold),
-                key=f"override_rel_thresh_{i}"
-            )
+        # if f"show_overrides_{i}" not in st.session_state:
+        #     st.session_state[f"show_overrides_{i}"] = False
+        # with st.expander("⚙️ Marker Overrides", expanded=False):
+        #     marker.setdefault("overrides", {})
+        #     marker["overrides"]["relative_peak_threshold"] = st.slider(
+        #         f"[{marker['marker']}] Rel. Threshold", 0.01, 1.0,
+        #         value=marker["overrides"].get("relative_peak_threshold", st.session_state.config.relative_peak_threshold),
+        #         key=f"override_rel_thresh_{i}"
+        #     )
 
     st.markdown("### Actions")
     cols = st.columns(3)
@@ -146,15 +188,16 @@ def run():
 
     # --- Global Config Editor ---
     with config_col:
-        global_config_ui()
+        marker_config_ui()
 
     # --- Marker Config ---
-    marker_config_ui()
+    
 
     # --- Process All Button ---
+    global_config_ui()  
     if st.session_state.samples and st.session_state.marker_list:
         st.subheader("⚙️ Process All Samples")
-        if st.button("🚀 Run Genotype Calling"):
+        if st.button("🚀 Run Genotype Calling", use_container_width=True):
             with st.spinner("Processing all uploaded samples..."):
                 all_calls = []
                 global_cfg = st.session_state.config
