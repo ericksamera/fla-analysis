@@ -2,27 +2,52 @@ import streamlit as st
 import pandas as pd
 
 def run():
-    st.title("🧾 Sample Metadata Editor")
+
+    def add_population_group():
+        new_group = st.session_state.get("new_group_name", "").strip()
+        if not new_group:
+            return
+
+        group_list = st.session_state.setdefault("population_groups", [])
+        if new_group not in group_list:
+            group_list.append(new_group)
+            st.toast(f"Added group: {new_group}", icon="✨")
+
+        st.session_state["new_group_name"] = ""
+
+    st.title("Sample Metadata Editor")
 
     if not st.session_state.samples:
         st.warning("No samples found. Please upload files first.")
         return
 
-    with st.expander("📋 Manage Population Groups", expanded=True):
-        new_pop = st.text_input("Add new population group", key="new_pop_group")
-        if st.button("➕ Add Group"):
-            if "population_groups" not in st.session_state:
-                st.session_state["population_groups"] = []
-            if new_pop and new_pop not in st.session_state["population_groups"]:
-                st.session_state["population_groups"].append(new_pop)
-                st.success(f"Added group: {new_pop}")
+    with st.expander("Extra options, maybe", expanded=True):
+        st.session_state.setdefault("population_groups", ["Pop1", "Pop2", "Unknown"])
 
-        if st.session_state.get("population_groups"):
-            to_remove = st.multiselect("Remove groups", st.session_state["population_groups"])
-            if st.button("🗑️ Remove Selected"):
-                st.session_state["population_groups"] = [
-                    g for g in st.session_state["population_groups"] if g not in to_remove
-                ]
+        left, right = st.columns([3, 2])
+
+        with left:
+            selection = st.pills(
+                label="Population Groups",
+                options=st.session_state["population_groups"],
+                selection_mode="single",
+                key="group_pills"
+            )
+            if selection:
+                st.session_state["population_groups"].remove(selection)
+                st.toast(f"Removed group: {selection}", icon="🗑️")
+                st.rerun()
+            st.text_input(
+                "New group name",
+                key="new_group_name",
+                on_change=add_population_group,
+                label_visibility="collapsed",
+                placeholder="Type name + Enter to add"
+            )
+
+        with right:
+            pass
+
 
 
     # Aggregate sample metadata
