@@ -2,3 +2,4 @@ biopython
 streamlit
 plotly
 scipy
+pydantic
