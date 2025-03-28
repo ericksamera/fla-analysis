@@ -31,10 +31,17 @@ def run():
 
             all_calls = []
             cfg = st.session_state.config
-            marker_cfgs = [
-                m if isinstance(m, MarkerConfig) else MarkerConfig(**m)
-                for m in st.session_state.marker_list
-            ]
+            marker_cfgs = []
+            for i, m in enumerate(st.session_state.marker_list):
+                if isinstance(m, MarkerConfig):
+                    marker_cfgs.append(m)
+                elif isinstance(m, dict):
+                    try:
+                        marker_cfgs.append(MarkerConfig(**m))
+                    except Exception as e:
+                        st.warning(f"Skipping malformed marker config at index {i}: {e}")
+                else:
+                    st.warning(f"Skipping unknown marker config type at index {i}: {type(m)}")
 
             for sid, sample in st.session_state.samples.items():
                 result = run_pipeline(sample.file_path, cfg, marker_cfgs, sample=sample)
