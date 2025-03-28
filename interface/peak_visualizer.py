@@ -60,14 +60,14 @@ class PeakVisualizerApp:
     def _display_genotyping(self):
         with st.sidebar.expander("📋 Genotype Summary", expanded=True):
             table_data = []
-            marker_configs = {m["marker"]: m for m in st.session_state.marker_list}
+            marker_configs = {m.marker: m for m in st.session_state.marker_list}
 
             for marker_name, result in self.sample.marker_results.items():
                 mcfg = marker_configs.get(marker_name, {})
                 table_data.append({
                     "Marker": marker_name,
-                    "Dye": mcfg.get("channel", "-"),
-                    "Repeat": mcfg.get("repeat_unit", "-"),
+                    "Dye": mcfg.channel,
+                    "Repeat": mcfg.repeat_unit,
                     "Genotype": "/".join(map(str, result.alleles)) if result.alleles else "-",
                     "Conf.": round(result.confidence, 3)
                 })

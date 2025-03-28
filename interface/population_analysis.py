@@ -4,9 +4,10 @@ import streamlit as st
 import pandas as pd
 from fla_pipeline.analysis.config import DistanceConfig
 from fla_pipeline.analysis.distance import DistanceCalculator
-from fla_pipeline.config import MarkerConfig
-from fla_pipeline.models.genotype import GenotypeResult
+from fla_pipeline.config.marker_config import MarkerConfig
 from interface.plotting.population_plots import plot_pcoa
+
+from fla_pipeline.utils.exporters import get_exporter
 
 def run():
     st.title("📊 Population Structure Analysis")
@@ -23,11 +24,17 @@ def run():
         if sample.marker_results
     }
     marker_configs = {
-        m["marker"]: MarkerConfig(**m) for m in marker_list
+        m.marker: m for m in marker_list
     }
     metadata = {
         sid: sample.metadata for sid, sample in samples.items()
     }
+
+    format_option = st.selectbox("Choose export format", options=["GenAlEx"])
+    exporter = get_exporter(format_option)
+
+    csv_data = exporter.export(st.session_state.genotype_results_df)
+    st.download_button("Download Export", data=csv_data, file_name=exporter.filename(), mime="text/csv")
 
     # Advanced settings
     with st.expander("⚙️ Advanced Settings", expanded=False):

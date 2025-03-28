@@ -25,10 +25,10 @@ def make_total_trace_figure(sample: Sample, marker_list: list, config: dict) -> 
         if y_max > 0:
             fig.update_yaxes(range=[0, y_max * 1.1])
         for marker in marker_list:
-            channel = marker.get("channel")
-            repeat = marker.get("repeat_unit", 1)
+            channel = marker.channel
+            repeat = marker.repeat_unit or 1
+            bmin, bmax = marker.bins
             tol = config.get("bin_tolerance", 2) * repeat
-            bmin, bmax = marker.get("bins", [0, 0])
             color = COLOR_MAP.get(channel, "gray")
 
             fig.add_vrect(x0=bmin, x1=bmax, fillcolor=color, opacity=0.05, layer="below", line_width=0)
@@ -99,11 +99,11 @@ def make_per_channel_figure(ch: str, sample: Sample, marker_list: list, config: 
         if y_max > 0:
             fig.update_yaxes(range=[0, y_max * 1.1])
         for marker in marker_list:
-            if marker.get("channel") != ch:
+            if marker.channel != ch:
                 continue
-            repeat = marker.get("repeat_unit", 1)
+            repeat = marker.repeat_unit
             tol = config.get("bin_tolerance", 2) * repeat
-            bmin, bmax = marker.get("bins", [0, 0])
+            bmin, bmax = marker.bins
             color = COLOR_MAP.get(ch, "gray")
             fig.add_vrect(x0=bmin, x1=bmax, fillcolor=color, opacity=0.05, layer="below", line_width=0)
             fig.add_vrect(x0=bmin - tol, x1=bmax + tol, fillcolor=color, opacity=0.05, layer="below", line_width=0)
@@ -114,13 +114,13 @@ def make_per_channel_figure(ch: str, sample: Sample, marker_list: list, config: 
         for p in visible_peaks:
             matched = []
             for m in marker_list:
-                if m["channel"] != ch:
+                if m.channel != ch:
                     continue
-                bmin, bmax = m.get("bins", [0, 0])
-                repeat = m.get("repeat_unit", 1)
+                bmin, bmax = m.bins
+                repeat = m.repeat_unit
                 tol = config.get("bin_tolerance", 2) * repeat
                 if (bmin - tol) <= p.position <= (bmax + tol):
-                    matched.append(m["marker"])
+                    matched.append(m.marker)
             marker_note = ", ".join(matched) if matched else "—"
             annotations.append(f"Size: {p.position} bp<br>Height: {p.intensity}<br>Marker: {marker_note}")
 
@@ -134,8 +134,8 @@ def make_per_channel_figure(ch: str, sample: Sample, marker_list: list, config: 
 
     # Determine x-axis range
     marker_bins = [
-        (m.get("bins", [0, 0]), m.get("repeat_unit", 1))
-        for m in marker_list if m.get("channel") == ch
+        (m.bins, m.repeat_unit)
+        for m in marker_list if m.channel == ch
     ]
     if marker_bins:
         min_start = min(bmin for (bmin, _), _ in marker_bins)
@@ -161,24 +161,28 @@ def make_per_channel_figure(ch: str, sample: Sample, marker_list: list, config: 
 
 def _get_max_visible_peak_in_regions(peaks_by_channel, marker_list, config, target_channel=None):
     tol_lookup = {
-        m["marker"]: config.get("bin_tolerance", 2) * m.get("repeat_unit", 1)
+        m.marker: config.get("bin_tolerance", 2) * (m.repeat_unit or 1)
         for m in marker_list
     }
+
     max_intensity = 0
     for marker in marker_list:
-        ch = marker.get("channel")
+        ch = marker.channel
         if target_channel and ch != target_channel:
             continue
         if ch not in peaks_by_channel:
             continue
-        tol = tol_lookup[marker["marker"]]
-        bmin, bmax = marker.get("bins", [0, 0])
+
+        tol = tol_lookup[marker.marker]
+        bmin, bmax = marker.bins
+
         visible_peaks = [
             p for p in peaks_by_channel[ch]
             if not getattr(p, "suppressed", False) and (bmin - tol) <= p.position <= (bmax + tol)
         ]
+
         local_max = max((p.intensity for p in visible_peaks), default=0)
         if local_max > max_intensity:
             max_intensity = local_max
-    return max_intensity
 
+    return max_intensity

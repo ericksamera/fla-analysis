@@ -1,7 +1,7 @@
 # fla_pipeline/core/peak_detector.py
 
 from collections import defaultdict
-from fla_pipeline.config import GlobalConfig
+from fla_pipeline.config.global_config import GlobalConfig
 from fla_pipeline.models.peak import Peak
 from fla_pipeline.utils.saturation import correct_if_saturated
 from typing import Dict, List, Tuple

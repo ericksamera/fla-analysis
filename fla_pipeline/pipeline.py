@@ -1,6 +1,7 @@
 # fla_pipeline/pipeline.py
 
-from fla_pipeline.config import GlobalConfig, MarkerConfig
+from fla_pipeline.config.global_config import GlobalConfig
+from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.core.fsa_loader import load_fsa
 from fla_pipeline.core.peak_detector import detect_peaks
 from fla_pipeline.core.peak_binner import bin_peaks
@@ -52,7 +53,7 @@ def run_pipeline(
                 f"Genotype confidence {genotype.confidence:.2f} below threshold ({per_marker_cfg.min_genotype_confidence}). Call suppressed."
             )
 
-        marker_results[marker.marker] = genotype.dict()
+        marker_results[marker.marker] = genotype.to_dict()
 
 
     return {

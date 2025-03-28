@@ -2,7 +2,7 @@
 
 from typing import List
 import numpy as np
-from fla_pipeline.config import GlobalConfig
+from fla_pipeline.config.global_config import GlobalConfig
 
 class QCScore:
     def __init__(self, config: GlobalConfig):
