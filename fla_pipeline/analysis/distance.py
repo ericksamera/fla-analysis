@@ -4,7 +4,7 @@ from fla_pipeline.analysis.config import DistanceConfig
 from fla_pipeline.analysis.metrics.bruvo import BruvoDistanceMetric
 from fla_pipeline.analysis.metrics.base import BaseDistanceMetric
 from fla_pipeline.models.genotype import GenotypeResult
-from fla_pipeline.config import MarkerConfig
+from fla_pipeline.config.marker_config import MarkerConfig
 from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np

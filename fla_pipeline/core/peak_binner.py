@@ -1,7 +1,8 @@
 # fla_pipeline/core/peak_binner.py
 
 from fla_pipeline.models.peak import Peak
-from fla_pipeline.config import GlobalConfig, MarkerConfig
+from fla_pipeline.config.global_config import GlobalConfig
+from fla_pipeline.config.marker_config import MarkerConfig 
 from typing import List, Tuple, Dict
 from collections import defaultdict
 import numpy as np

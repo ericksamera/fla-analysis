@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from fla_pipeline.models.genotype import GenotypeResult
-from fla_pipeline.config import MarkerConfig
+from fla_pipeline.config.marker_config import MarkerConfig
 from typing import Optional
 
 class BaseDistanceMetric(ABC):
