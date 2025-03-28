@@ -7,7 +7,7 @@ from typing import Dict
 from fla_pipeline.models.sample import Sample
 from fla_pipeline.models.genotype import GenotypeResult
 from fla_pipeline.config.session_config import SessionConfig
-from fla_pipeline.config import SESSION_VERSION
+from fla_pipeline.config import __VERSION__
 from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.config.global_config import GlobalConfig
 from fla_pipeline.analysis.config import DistanceConfig
@@ -78,7 +78,7 @@ def serialize_session_cached(
     distance_config_json: dict | None = None
 ) -> dict:
     session_config = SessionConfig(
-        version=SESSION_VERSION,
+        version=__VERSION__,
         samples=samples_json,
         marker_list=marker_list_json,
         global_config=config_json,
@@ -105,7 +105,7 @@ def serialize_session() -> Dict:
     distance_config = st.session_state.get("distance_config")
 
     session_config = SessionConfig(
-        version=SESSION_VERSION,
+        version=__VERSION__,
         samples=[s.to_dict() for s in samples.values()],
         marker_list=[
             m if isinstance(m, MarkerConfig) else MarkerConfig(**m)
@@ -132,7 +132,7 @@ def deserialize_session(data: Dict):
 
 def session_export_button():
     if st.button("Export Session", use_container_width=True, disabled=not bool(st.session_state.config)):
-        # 👇 Prepare clean JSON-serializable versions of session state
+
         samples_json = [s.to_dict() for s in st.session_state["samples"].values()]
         marker_list_json = [m.model_dump() for m in st.session_state["marker_list"]]
         config_json = st.session_state["config"].model_dump()

@@ -65,41 +65,44 @@ def run():
         all_populations.add(meta["Population"])
 
         rows.append({
+            "UID": sample.sample_uid,
             "Filename": sid + ".fsa",
-            **meta
+            "Sample Name": meta.get("Sample Name", sid.split("_")[0]),
+            "Population": meta.get("Population", "Unknown")
         })
 
+
     df = pd.DataFrame(rows)
-    column_order = ["Filename", "Sample Name", "Population"]
+    
 
     # --- Dynamic dropdown for population field ---
     pop_options = st.session_state.get("population_groups", []) or ["Unknown"]
     column_config = {
         "Population": st.column_config.SelectboxColumn(
             label="Population",
-            help="Assign population group",
             options=pop_options,
             required=True
         )
     }
 
-
-
+    column_order = ["Filename", "Sample Name", "Population"]
     edited = st.data_editor(
         df,
         column_order=column_order,
-        column_config=column_config,
         disabled=["Filename"],
-        num_rows="fixed",
+        column_config=column_config,
         use_container_width=True,
-        key="metadata_editor"
+        hide_index=True
     )
 
     if st.button("💾 Save Metadata Changes"):
         for _, row in edited.iterrows():
-            sid = row["Filename"].replace(".fsa", "")
-            if sid not in st.session_state.samples:
-                continue
+            uid = row["UID"]
+            for s in st.session_state.samples.values():
+                if s.sample_uid == uid:
+                    s.metadata["Sample Name"] = row["Sample Name"]
+                    s.metadata["Population"] = row["Population"]
+                    break
             st.session_state.samples[sid].metadata = {
                 k: row[k] for k in ["Sample Name", "Population"]
                 if pd.notna(row[k])

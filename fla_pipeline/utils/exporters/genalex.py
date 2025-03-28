@@ -15,8 +15,6 @@ class GenalexExporter(ExporterBase):
         self.metadata = metadata or {}
 
     def export(self, df: pd.DataFrame) -> str:
-
-
         def extract_alleles(g):
             if isinstance(g, GenotypeResult):
                 return g.alleles
@@ -35,49 +33,59 @@ class GenalexExporter(ExporterBase):
                     return []
             return []
 
-        # Map population label to each sample
-        df["_Pop"] = df["Sample Name"].map(
-            lambda s: self.metadata.get(s, {}).get("Population", "Unknown")
-        )
+        if "sample_uid" not in df.columns:
+            raise ValueError("Genotype results must include sample_uid column.")
 
-        # Sort by population and sample name for block grouping
+        def get_population(uid):
+            meta = self.metadata.get(uid)
+            if meta and isinstance(meta, dict):
+                return meta.get("Population", "Unknown")
+            print(f"⚠️ No metadata match for UID: {uid}")
+            return "Unknown"
+
+        df["_Pop"] = df["sample_uid"].map(get_population)
+
+        # Sort and prep
         df = df.sort_values(by=["_Pop", "Sample Name"]).copy()
-
-        # Identify markers and populations
         markers = sorted(df["Marker"].unique())
-        all_samples = df["Sample Name"].unique()
-        pop_to_samples = defaultdict(list)
-        for sample, pop in zip(df["Sample Name"], df["_Pop"]):
-            pop_to_samples[pop].append(sample)
+        unique_uids = df["sample_uid"].unique()
 
-        ordered_pop_labels = sorted(pop_to_samples.keys())
-        ordered_samples = [s for pop in ordered_pop_labels for s in pop_to_samples[pop]]
-        pop_sizes = [len(pop_to_samples[pop]) for pop in ordered_pop_labels]
+        pop_to_uids = defaultdict(list)
+        for uid in unique_uids:
+            pop = get_population(uid)
+            pop_to_uids[pop].append(uid)
 
-        # Row 1: metadata
-        row1 = [len(markers), len(ordered_samples), len(ordered_pop_labels)]
+        ordered_pops = sorted(pop_to_uids.keys())
+        ordered_uids = [uid for pop in ordered_pops for uid in pop_to_uids[pop]]
+        pop_sizes = [len(pop_to_uids[pop]) for pop in ordered_pops]
 
-        # Row 2: title + population block sizes
-        row2 = ["GenAlEx Codominant Export"] + [""] * (2 * len(markers) - 1) + pop_sizes
-
-        # Row 3: headers
+        # Headers
+        row1 = [len(markers), len(ordered_uids), len(ordered_pops)] + pop_sizes
+        row2 = ["GenAlEx Codominant Export"] + ["", ""] + [pop for pop in ordered_pops] 
         header = ["Sample Name", "Pop"] + [m for marker in markers for m in (marker, "")]
 
         # Data rows
         data_rows = []
-        for sample in ordered_samples:
-            sample_df = df[df["Sample Name"] == sample]
-            pop_label = sample_df["_Pop"].iloc[0]
-            row = [sample, pop_label]
+        for uid in ordered_uids:
+            sample_df = df[df["sample_uid"] == uid]
+            if sample_df.empty:
+                continue
 
+            sample_name = sample_df["Sample Name"].iloc[0]
+            pop = sample_df["_Pop"].iloc[0]
+
+            row = [sample_name, pop]
             for marker in markers:
                 match = sample_df[sample_df["Marker"] == marker]
                 if not match.empty:
                     g = match["Genotype"].iloc[0]
                     alleles = extract_alleles(g)
-                    row.extend([str(a) for a in alleles[:2]] + [""] * (2 - len(alleles)))
+                    if not alleles:
+                        row.extend(["0", "0"])
+                    else:
+                        row.extend([str(a) for a in alleles[:2]] + ["0"] * (2 - len(alleles)))
                 else:
-                    row.extend(["", ""])
+                    row.extend(["0", "0"])
             data_rows.append(row)
 
         # Write CSV
@@ -86,22 +94,10 @@ class GenalexExporter(ExporterBase):
         writer.writerow(row1)
         writer.writerow(row2)
         writer.writerow(header)
-        for row in data_rows:
-            writer.writerow([v if v != "" else "" for v in row])
-        return output.getvalue()
+        writer.writerows(data_rows)
 
+        return output.getvalue()
 
 
     def filename(self) -> str:
         return "genalex.csv"
-
-    def _assign_population_codes(self, samples):
-        """
-        Assigns numeric codes to populations based on metadata["Population"]
-        """
-        pop_labels = {
-            self.metadata.get(s, {}).get("Population", "Unknown")
-            for s in samples
-        }
-        sorted_pops = sorted(pop_labels)
-        return {pop: i + 1 for i, pop in enumerate(sorted_pops)}

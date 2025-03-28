@@ -4,6 +4,7 @@ import streamlit as st
 from interface.backend.session import initialize_session_state
 from interface.backend.session_io import session_export_button, session_import_button
 
+from fla_pipeline.config import __VERSION__
 
 initialize_session_state()
 
@@ -52,7 +53,7 @@ def main():
     page.run()
 
     st.divider()
-    st.caption("abi-sauce | Developed by Erick Samera")
+    st.caption(f"abi-sauce v {__VERSION__} | Developed by Erick Samera")
 
 if __name__ == "__main__":
     main()

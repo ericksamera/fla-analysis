@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 
 class SessionConfig(BaseModel):
     version: str
-    samples: List[Dict[str, Any]]  # Serialized Sample.to_dict()
+    samples: List[Dict[str, Any]]
     marker_list: List[MarkerConfig]
     global_config: GlobalConfig
     distance_config: Optional[DistanceConfig] = None

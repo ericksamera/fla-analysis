@@ -4,9 +4,6 @@ import streamlit as st
 from fla_pipeline.config.global_config import GlobalConfig
 
 def global_config_ui():
-    st.subheader("⚙️ Global Config")
-
-
     if "config" not in st.session_state or st.session_state.config is None:
         st.session_state.config = GlobalConfig()
 

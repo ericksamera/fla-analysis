@@ -26,33 +26,33 @@ def run():
 
     global_config_ui()
 
-    if st.session_state.samples and st.session_state.marker_list:
-        st.subheader("Process All Samples")
-        if st.button("Run Genotype Calling", use_container_width=True):
-            with st.spinner("Processing all uploaded samples..."):
+    if st.button("Run Genotype Calling", type="primary", use_container_width=True, disabled=not (st.session_state.samples and st.session_state.marker_list)):
+        with st.spinner("Processing all uploaded samples..."):
 
-                all_calls = []
-                cfg = st.session_state.config
-                marker_cfgs = [m if isinstance(m, MarkerConfig) else MarkerConfig(**m) for m in st.session_state.marker_list]
+            all_calls = []
+            cfg = st.session_state.config
+            marker_cfgs = [m if isinstance(m, MarkerConfig) else MarkerConfig(**m) for m in st.session_state.marker_list]
 
-                for sid, sample in st.session_state.samples.items():
-                    result = run_pipeline(sample.file_path, cfg, marker_cfgs)
-                    sample.marker_results = {
-                        k: GenotypeResult(**v) for k, v in result["marker_results"].items()
-                    }
-                    sample.metadata["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
+            for sid, sample in st.session_state.samples.items():
+                result = run_pipeline(sample.file_path, cfg, marker_cfgs)
+                sample.marker_results = {
+                    k: GenotypeResult(**v) for k, v in result["marker_results"].items()
+                }
+                sample.metadata["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
 
-                    for marker, geno in sample.marker_results.items():
-                        all_calls.append({
-                            "Sample Name": sid,
-                            "Marker": marker,
-                            "Genotype": "/".join([str(i) for i in geno.alleles]),
-                            "Confidence": geno.confidence,
-                            "QC Flags": "; ".join(geno.qc_flags),
-                        })
+                for marker, geno in sample.marker_results.items():
+                    all_calls.append({
+                        "sample_uid": sample.sample_uid,
+                        "sample_id": sid,
+                        "Sample Name": sample.metadata.get("Sample Name", sid),
+                        "Marker": marker,
+                        "Genotype": "/".join([str(i) for i in geno.alleles]),
+                        "Confidence": geno.confidence,
+                        "QC Flags": "; ".join(geno.qc_flags),
+                    })
 
-                st.session_state.genotype_results_df = pd.DataFrame(all_calls)
-                st.success(f"Processed {len(st.session_state.samples)} samples.")
-                st.rerun()
+            st.session_state.genotype_results_df = pd.DataFrame(all_calls)
+            st.success(f"Processed {len(st.session_state.samples)} samples.")
+            st.rerun()
 
 run()

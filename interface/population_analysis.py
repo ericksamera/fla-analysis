@@ -4,17 +4,30 @@ import streamlit as st
 import pandas as pd
 from fla_pipeline.analysis.config import DistanceConfig
 from fla_pipeline.analysis.distance import DistanceCalculator
-from fla_pipeline.config.marker_config import MarkerConfig
+
 from interface.plotting.population_plots import plot_pcoa
+
+from fla_pipeline.analysis.fst_analysis import calculate_fst_per_marker
+
+import scipy.stats as stats
+from collections import Counter
+
+from fla_pipeline.utils.table_builders import build_genotype_results_df
 
 from fla_pipeline.utils.exporters import get_exporter
 
-def run():
-    st.title("📊 Population Structure Analysis")
+from fla_pipeline.analysis.hwe_analysis import compute_hwe_stats, display_hwe_results
 
-    if "genotype_results_df" not in st.session_state or st.session_state.genotype_results_df.empty:
+def run():
+    st.title("Population Structure Analysis")
+
+    samples = st.session_state.samples
+
+    if not st.session_state.samples or not any(s.marker_results for s in samples.values()):
         st.info("No genotype results available. Please process samples first.")
         return
+    
+    genotype_df = build_genotype_results_df(samples)
 
     samples = st.session_state.samples
     marker_list = st.session_state.marker_list
@@ -31,13 +44,42 @@ def run():
     }
 
     format_option = st.selectbox("Choose export format", options=["GenAlEx"])
-    exporter = get_exporter(format_option)
 
-    csv_data = exporter.export(st.session_state.genotype_results_df)
-    st.download_button("Download Export", data=csv_data, file_name=exporter.filename(), mime="text/csv")
+    # Build UID-keyed metadata for exporter
+    metadata_by_uid = {
+        sample.sample_uid: {
+            "Sample Name": sample.metadata.get("Sample Name", sample.sample_id),
+            "Population": sample.metadata.get("Population", "Unknown"),
+        }
+        for sample in samples.values()
+    }
+
+    exporter = get_exporter(format_option, metadata=metadata_by_uid)
+    csv_data = exporter.export(genotype_df)
+
+    st.download_button(
+        "Download Export",
+        data=csv_data,
+        file_name=exporter.filename(),
+        mime="text/csv"
+    )
+
+    hwe_results = compute_hwe_stats(genotype_df, marker_configs)
+    display_hwe_results(hwe_results)
+
+    fst_df = calculate_fst_per_marker(genotype_df)
+
+    with st.expander('FST stuff'):
+        st.subheader("FST Per Marker")
+        st.dataframe(fst_df, use_container_width=True)
+
+        # Optional: highlight high-FST outliers
+        st.markdown("**Top divergent markers:**")
+        st.write(fst_df[fst_df['FST'] > 0.15])  # Adjust threshold as needed
+
 
     # Advanced settings
-    with st.expander("⚙️ Advanced Settings", expanded=False):
+    with st.expander("Advanced Settings", expanded=False):
         metric = st.selectbox("Distance metric", options=["bruvo"], index=0)
         min_conf = st.slider("Min genotype confidence", 0.0, 1.0, 0.8, step=0.05)
         min_samples = st.slider("Min sample count per marker", 1, 10, 2)
@@ -45,7 +87,7 @@ def run():
         debug_mode = st.checkbox("Enable debug logging", value=False)
 
     # Recalc button
-    if st.button("🚀 Recalculate Distance Matrix"):
+    if st.button("Recalculate Distance Matrix"):
         cfg = DistanceConfig(
             metric=metric,
             min_confidence=min_conf,
