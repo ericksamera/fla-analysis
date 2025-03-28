@@ -31,13 +31,18 @@ def run():
 
             all_calls = []
             cfg = st.session_state.config
-            marker_cfgs = [m if isinstance(m, MarkerConfig) else MarkerConfig(**m) for m in st.session_state.marker_list]
+            marker_cfgs = [
+                m if isinstance(m, MarkerConfig) else MarkerConfig(**m)
+                for m in st.session_state.marker_list
+            ]
 
             for sid, sample in st.session_state.samples.items():
                 result = run_pipeline(sample.file_path, cfg, marker_cfgs)
                 sample.marker_results = {
-                    k: GenotypeResult(**v) for k, v in result["marker_results"].items()
+                    k: v if isinstance(v, GenotypeResult) else GenotypeResult(**v)
+                    for k, v in result["marker_results"].items()
                 }
+
                 sample.metadata["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
 
                 for marker, geno in sample.marker_results.items():

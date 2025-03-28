@@ -2,11 +2,9 @@
 
 import streamlit as st
 from interface.backend.session import initialize_session_state
-from interface.backend.session_io import session_export_button, session_import_button
+from interface.backend.session_io import normalize_session_state, session_export_button, session_import_button
 
 from fla_pipeline.config import __VERSION__
-
-initialize_session_state()
 
 st.set_page_config(
     page_title="abi-sauce | FLA viewer",
@@ -17,6 +15,7 @@ st.set_page_config(
 
 def main():
     initialize_session_state()
+    normalize_session_state()
 
     with st.sidebar:
         col_export, col_import  = st.columns(2, border=False)
