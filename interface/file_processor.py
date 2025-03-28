@@ -37,7 +37,7 @@ def run():
             ]
 
             for sid, sample in st.session_state.samples.items():
-                result = run_pipeline(sample.file_path, cfg, marker_cfgs)
+                result = run_pipeline(sample.file_path, cfg, marker_cfgs, sample=sample)
                 sample.marker_results = {
                     k: v if isinstance(v, GenotypeResult) else GenotypeResult(**v)
                     for k, v in result["marker_results"].items()

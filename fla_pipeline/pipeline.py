@@ -9,18 +9,34 @@ from fla_pipeline.strategies.diploid import get_diploid_caller
 from fla_pipeline.models.genotype import GenotypeResult
 from typing import Dict, Any
 
+from fla_pipeline.models.sample import Sample 
 
 def run_pipeline(
     file_path: str,
     config: GlobalConfig,
-    markers: list[MarkerConfig]
+    markers: list[MarkerConfig],
+    sample: Sample | None = None
 ) -> Dict[str, Any]:
-    fsa_data = load_fsa(file_path)
+    # Use existing data if available
+    if sample and sample.fsa_data and sample.peaks:
+        fsa_data = sample.fsa_data
+        peak_dict = sample.peaks
+        max_liz_intensity = sample.metadata.get("max_liz_intensity", 0.0)
+        suppressed_peaks = sample.suppressed_peaks or {}
+    else:
+        fsa_data = load_fsa(file_path)
+        smap = fsa_data["smap"]
+        channels = fsa_data["channels"]
+        peak_dict, max_liz_intensity, suppressed_peaks = detect_peaks(smap, channels, config)
+
+        # If a Sample object was passed, populate it
+        if sample is not None:
+            sample.fsa_data = fsa_data
+            sample.peaks = peak_dict
+            sample.suppressed_peaks = suppressed_peaks
+            sample.metadata["max_liz_intensity"] = max_liz_intensity
+
     smap = fsa_data["smap"]
-    channels = fsa_data["channels"]
-
-    peak_dict, max_liz_intensity, suppressed_peaks = detect_peaks(smap, channels, config)
-
     marker_results: Dict[str, dict] = {}
 
     if config.ploidy != 2:
@@ -46,7 +62,6 @@ def run_pipeline(
         genotype: GenotypeResult = caller.call_genotype(binned_peaks, marker, per_marker_cfg, max_liz_intensity=max_liz_intensity)
         genotype.qc_flags = bin_flags + genotype.qc_flags
 
-        # Confidence-based filtering (from #2)
         if genotype.confidence < per_marker_cfg.min_genotype_confidence:
             genotype.alleles = []
             genotype.qc_flags.append(
@@ -54,7 +69,6 @@ def run_pipeline(
             )
 
         marker_results[marker.marker] = genotype.to_dict()
-
 
     return {
         "fsa_data": {
