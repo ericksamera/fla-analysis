@@ -42,6 +42,8 @@ def run():
                         st.warning(f"Skipping malformed marker config at index {i}: {e}")
                 else:
                     st.warning(f"Skipping unknown marker config type at index {i}: {type(m)}")
+                    print(type(m))
+                    raise m
 
             for sid, sample in st.session_state.samples.items():
                 result = run_pipeline(sample.file_path, cfg, marker_cfgs, sample=sample)
