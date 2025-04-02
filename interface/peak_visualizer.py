@@ -38,41 +38,37 @@ class PeakVisualizerApp:
 
         self._display_genotyping()
 
-        if len(results) <= 5:
-            tabs = st.sidebar.tabs(results.keys())
-            for marker, tab in zip(results.keys(), tabs):
-                with tab:
-                    self._display_qc(marker, results[marker].qc_flags, icon_map)
-        else:
+        with st.sidebar:
             marker_list = list(results.keys())
-            marker_selected = st.sidebar.selectbox("Select Marker", marker_list)
+            marker_selected = st.selectbox("Select Marker", marker_list)
             self._display_qc(marker_selected, results[marker_selected].qc_flags, icon_map)
 
     def _display_qc(self, marker: str, flags: list[str], icon_map: dict):
-        st.markdown(f"**{marker}**")
-        if not flags:
-            st.success("No QC flags!", icon=":material/check_circle_outline:")
-            return
-        for flag in flags:
-            icon = next((icon for substr, icon in icon_map.items() if substr in flag), ":material/info:")
-            st.warning(flag, icon=icon)
+        with st.container(height=200, border=False):
+            if not flags:
+                st.success("No QC flags!", icon=":material/check_circle_outline:")
+                return
+            for flag in flags:
+                icon = next((icon for substr, icon in icon_map.items() if substr in flag), ":material/info:")
+                st.warning(flag, icon=icon)
 
     def _display_genotyping(self):
-        with st.sidebar.expander("📋 Genotype Summary", expanded=True):
-            table_data = []
-            marker_configs = {m.marker: m for m in st.session_state.marker_list}
+        with st.sidebar:
+            with st.container(border=False):
+                table_data = []
+                marker_configs = {m.marker: m for m in st.session_state.marker_list}
 
-            for marker_name, result in self.sample.marker_results.items():
-                mcfg = marker_configs.get(marker_name, {})
-                table_data.append({
-                    "Marker": marker_name,
-                    "Dye": mcfg.channel,
-                    "Repeat": mcfg.repeat_unit,
-                    "Genotype": "/".join(map(str, result.alleles)) if result.alleles else "-",
-                    "Conf.": round(result.confidence, 3)
-                })
+                for marker_name, result in self.sample.marker_results.items():
+                    mcfg = marker_configs.get(marker_name, {})
+                    table_data.append({
+                        "Marker": marker_name,
+                        "Dye": mcfg.channel,
+                        "Repeat": mcfg.repeat_unit,
+                        "Genotype": "/".join(map(str, result.alleles)) if result.alleles else "-",
+                        "Conf.": round(result.confidence, 3)
+                    })
 
-            st.dataframe(table_data, use_container_width=True, hide_index=True)
+                st.dataframe(table_data, use_container_width=True, hide_index=True)
 
     def _plot_total_trace(self):
         fig = make_total_trace_figure(

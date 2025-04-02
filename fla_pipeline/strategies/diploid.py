@@ -140,3 +140,18 @@ class LenientRatioCaller(BaseDiploidCaller):
                 strategy="lenient_ratio",
                 qc_flags=[f"Minor peak below threshold (ratio = {ratio:.2f}); homozygous call."]
             )
+
+@register_diploid_strategy("haploid")
+class HaploidCaller(BaseDiploidCaller):
+    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig, **kwargs) -> GenotypeResult:
+        if not peaks:
+            return GenotypeResult(marker=marker.marker, alleles=[], strategy="haploid", qc_flags=["No peaks to call."])
+
+        major = max(peaks, key=lambda p: p.intensity)
+        return GenotypeResult(
+            marker=marker.marker,
+            alleles=[round(major.position)],
+            confidence=1.0,
+            strategy="haploid",
+            qc_flags=["Haploid call from major peak."]
+        )

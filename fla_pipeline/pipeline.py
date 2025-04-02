@@ -39,7 +39,7 @@ def run_pipeline(
     smap = fsa_data["smap"]
     marker_results: Dict[str, dict] = {}
 
-    if config.ploidy != 2:
+    if config.ploidy > 2:
         raise NotImplementedError("Only diploid mode is implemented.")
 
     for marker in markers:
@@ -52,7 +52,7 @@ def run_pipeline(
             binned_peaks = peaks
             bin_flags = ["Binning disabled; using raw peak positions."]
 
-        if per_marker_cfg.ploidy == 2:
+        if per_marker_cfg.ploidy <= 2:
             caller = get_diploid_caller(per_marker_cfg.diploid_strategy)
         elif per_marker_cfg.ploidy > 2:
             raise NotImplementedError("Polyploid genotype calling is not yet supported.")

@@ -21,14 +21,14 @@ def run():
         st.warning("No samples found. Please upload files first.")
         return
 
-    with st.expander("Extra options, maybe", expanded=True):
+    with st.expander("Extra options", expanded=True):
         st.session_state.setdefault("population_groups", ["Pop1", "Pop2", "Unknown"])
 
         left, right = st.columns([3, 2])
 
         with left:
             selection = st.pills(
-                label="Population Groups",
+                label="Population Groups (click to delete.)",
                 options=st.session_state["population_groups"],
                 selection_mode="single",
                 key="group_pills"

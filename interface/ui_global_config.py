@@ -30,6 +30,9 @@ def global_config_ui():
             else:
                 cfg.ploidy = {v: k for k, v in ploidy_labels.items()}[selected_label]
 
+
+        cfg.diploid_strategy = 'haploid' if cfg.ploidy == 1 else 'probabilistic'
+
         cfg.min_peak_height = st.number_input("Minimum Peak Height", value=1000 if not cfg.min_peak_height else cfg.min_peak_height)
 
         st.session_state.config = cfg

@@ -3,7 +3,7 @@
 import streamlit as st
 
 def run():
-    st.title("🌈 Welcome to `abi-sauce`")
+    st.title("Welcome to Erick's FLA reporter `FLAre`")
     st.markdown(
         """
         This app is designed for visualizing and analyzing **Fragment Length Analysis (FLA)** data.

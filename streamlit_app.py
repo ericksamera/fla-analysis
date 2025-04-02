@@ -4,11 +4,11 @@ import streamlit as st
 from interface.backend.session import initialize_session_state
 from interface.backend.session_io import normalize_session_state, session_export_button, session_import_button, session_restart_button
 
-from fla_pipeline.config import __VERSION__
+from fla_pipeline.config import __VERSION__, __COMMENT__
 
 st.set_page_config(
-    page_title="abi-sauce | FLA viewer",
-    page_icon="🌈",
+    page_title="FLAre | FLA reporter",
+    page_icon=":fire:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -56,7 +56,7 @@ def main():
     page.run()
 
     st.divider()
-    st.caption(f"abi-sauce v {__VERSION__} | Developed by Erick Samera")
+    st.caption(f"[fla-analysis v {__VERSION__}{': ' + __COMMENT__ if __COMMENT__ else ''}](https://github.com/ericksamera/fla-analysis) | Developed by Erick Samera ([@ericksamera](https://github.com/ericksamera))")
 
 if __name__ == "__main__":
     main()
