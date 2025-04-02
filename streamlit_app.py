@@ -2,7 +2,7 @@
 
 import streamlit as st
 from interface.backend.session import initialize_session_state
-from interface.backend.session_io import normalize_session_state, session_export_button, session_import_button
+from interface.backend.session_io import normalize_session_state, session_export_button, session_import_button, session_restart_button
 
 from fla_pipeline.config import __VERSION__
 
@@ -18,11 +18,15 @@ def main():
     normalize_session_state()
 
     with st.sidebar:
-        col_export, col_import  = st.columns(2, border=False)
+        st.caption("Session Options")
+        col_export, col_import, col_reset  = st.columns([2, 2, 1], border=False)
         with col_import:
             session_export_button()
         with col_export:
             session_import_button()
+        
+        with col_reset:
+            session_restart_button()
 
     custom_pages = {"Analysis Tools": []}
     custom_pages["Analysis Tools"].append(

@@ -2,7 +2,7 @@
 
 from interface.ui_upload import upload_file_ui
 from interface.ui_marker_config import marker_config_ui
-from interface.ui_global_config import global_config_ui
+from interface.ui_global_config import instantiate_global_config, global_config_ui
 
 import streamlit as st
 import pandas as pd
@@ -24,7 +24,7 @@ def run():
         st.subheader("Marker Configuration")
         marker_config_ui()
 
-    global_config_ui()
+    instantiate_global_config()
 
     if st.button("Run Genotype Calling", type="primary", use_container_width=True, disabled=not (st.session_state.samples and st.session_state.marker_list)):
         with st.spinner("Processing all uploaded samples..."):
@@ -68,5 +68,6 @@ def run():
             st.session_state.genotype_results_df = pd.DataFrame(all_calls)
             st.success(f"Processed {len(st.session_state.samples)} samples.")
             st.rerun()
+    global_config_ui()
 
 run()

@@ -131,7 +131,7 @@ def deserialize_session(data: Dict):
 # --- UI Hooks ---
 
 def session_export_button():
-    if st.button("Export Session", use_container_width=True, disabled=not bool(st.session_state.config)):
+    if st.button("Export", use_container_width=True, disabled=not bool(st.session_state.config)):
 
         samples_json = [s.to_dict() for s in st.session_state["samples"].values()]
         marker_list_json = [m.model_dump() for m in st.session_state["marker_list"]]
@@ -172,7 +172,7 @@ def session_import(file):
 
 def session_import_button():
     """Show a button to open the session import dialog."""
-    if st.button("Import Session", use_container_width=True):
+    if st.button("Import", use_container_width=True):
         session_import_dialog()
 
 
@@ -182,3 +182,15 @@ def session_import_dialog():
     uploaded = st.file_uploader("Upload session JSON", type="json")
     if uploaded:
         session_import(uploaded)
+
+
+@st.dialog("Restart Session")
+def session_restart_dialog():
+    st.error("This will reset the entire app and clear all session state.")
+    if st.button("Confirm Restart", type="primary"):
+        st.session_state.clear()
+        st.rerun()
+    
+def session_restart_button():
+    if st.button("", type='primary', key="restart_everything", icon=":material/restart_alt:", use_container_width=True):
+        session_restart_dialog()
