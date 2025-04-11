@@ -10,6 +10,8 @@ from fla_pipeline.models.genotype import GenotypeResult
 from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.pipeline import run_pipeline
 
+from interface.backend.session_io import normalize_session_state
+
 
 def run():
     st.title("Upload FSA Files & Configure Markers")
@@ -28,6 +30,7 @@ def run():
 
     if st.button("Run Genotype Calling", type="primary", use_container_width=True, disabled=not (st.session_state.samples and st.session_state.marker_list)):
         with st.spinner("Processing all uploaded samples..."):
+            normalize_session_state()
 
             all_calls = []
             cfg = st.session_state.config
