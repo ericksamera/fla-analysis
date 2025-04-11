@@ -1,7 +1,6 @@
 # File: fla_pipeline/interface/backend/session_io.py
 
 import json
-import io
 import streamlit as st
 from typing import Dict
 from fla_pipeline.models.sample import Sample
@@ -17,7 +16,8 @@ def normalize_session_state():
 
     if "marker_list" in st.session_state:
         st.session_state["marker_list"] = [
-            MarkerConfig(**m) if isinstance(m, dict) else m
+            # recreate every entry with the *current* MarkerConfig class
+            MarkerConfig(**(m.model_dump() if hasattr(m, "model_dump") else m))
             for m in st.session_state["marker_list"]
         ]
     if "config" in st.session_state and isinstance(st.session_state["config"], dict):

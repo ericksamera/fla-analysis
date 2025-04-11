@@ -1,4 +1,4 @@
-# fla_pipline/utils/evaluator.py
+# fla_pipeline/utils/evaluator.py
 
 from typing import List, Tuple
 from fla_pipeline.models.peak import Peak
