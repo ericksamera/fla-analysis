@@ -9,30 +9,44 @@ from fla_pipeline.utils.qc_score import QCScore
 
 
 class GenotypeEvaluator:
-    def __init__(self, config: GlobalConfig, marker: MarkerConfig, max_liz_intensity: float = 0.0):
+    def __init__(
+        self, config: GlobalConfig, marker: MarkerConfig, max_liz_intensity: float = 0.0
+    ):
         self.config = config
         self.marker = marker
         self.qc = QCScore(config)
         self.qc_flags: List[str] = []
         self.max_liz_intensity = max_liz_intensity
 
-    def evaluate_pair(self, pk1: Peak, pk2: Peak, all_peaks: List[Peak]) -> GenotypeResult:
+    def evaluate_pair(
+        self, pk1: Peak, pk2: Peak, all_peaks: List[Peak]
+    ) -> GenotypeResult:
         pos1, pos2 = round(pk1.position), round(pk2.position)
         alleles = sorted([pos1, pos2])
         ratio = min(pk1.intensity, pk2.intensity) / max(pk1.intensity, pk2.intensity)
         distance = abs(pk1.position - pk2.position)
 
         stutter_score, stutter_note = self.stutter_likelihood(distance, ratio)
-        self.qc.add(1.0 - stutter_score, "Stutter ambiguity", weight=self.config.stutter_weight)
+        self.qc.add(
+            1.0 - stutter_score, "Stutter ambiguity", weight=self.config.stutter_weight
+        )
         self.qc_flags.append(stutter_note)
 
         if self.is_probable_stutter(pk2, all_peaks):
-            self.qc.add(0.50, "Minor peak resembles stutter ladder", weight=self.config.stutter_weight)
-            self.qc_flags.append("Minor peak may be part of stutter ladder; suppressing heterozygote call.")
+            self.qc.add(
+                0.50,
+                "Minor peak resembles stutter ladder",
+                weight=self.config.stutter_weight,
+            )
+            self.qc_flags.append(
+                "Minor peak may be part of stutter ladder; suppressing heterozygote call."
+            )
 
         penalty = self.detect_distracting_peaks(all_peaks, pk1, pk2)
         if penalty > 0:
-            self.qc.add(penalty, "Distracting secondary peaks", weight=self.config.ratio_weight)
+            self.qc.add(
+                penalty, "Distracting secondary peaks", weight=self.config.ratio_weight
+            )
 
         confidence = min(self.qc.compute_confidence(), 0.95)
 
@@ -44,15 +58,16 @@ class GenotypeEvaluator:
             if liz_ratio < threshold_ratio:
                 penalty = (threshold_ratio - liz_ratio) * 0.25  # scale the penalty
                 confidence = max(0.0, confidence - penalty)
-                self.qc_flags.append(f"Low relative to LIZ: {liz_ratio:.2f} < {threshold_ratio} (-{penalty:.2f})")
-
+                self.qc_flags.append(
+                    f"Low relative to LIZ: {liz_ratio:.2f} < {threshold_ratio} (-{penalty:.2f})"
+                )
 
         return GenotypeResult(
             marker=self.marker.marker,
             alleles=alleles,
             confidence=confidence,
             strategy="probabilistic",
-            qc_flags=self.qc_flags + self.qc.summary_flags()
+            qc_flags=self.qc_flags + self.qc.summary_flags(),
         )
 
     def stutter_likelihood(self, distance: float, ratio: float) -> Tuple[float, str]:
@@ -69,7 +84,7 @@ class GenotypeEvaluator:
 
         for i, step in enumerate(repeat_steps):
             closeness = max(0.0, 1.0 - abs(distance - step) / tolerance)
-            decay_weight = decay ** i
+            decay_weight = decay**i
             penalties.append(closeness * decay_weight)
 
         total_closeness = max(penalties, default=0.0)
@@ -107,16 +122,26 @@ class GenotypeEvaluator:
                 return True
         return False
 
-    def detect_distracting_peaks(self, peaks: List[Peak], major: Peak, minor: Peak) -> float:
+    def detect_distracting_peaks(
+        self, peaks: List[Peak], major: Peak, minor: Peak
+    ) -> float:
         penalty = 0.0
         for p in peaks[2:]:
-            if abs(p.position - major.position) < 1 or abs(p.position - minor.position) < 1:
+            if (
+                abs(p.position - major.position) < 1
+                or abs(p.position - minor.position) < 1
+            ):
                 continue
 
             if self.is_probable_stutter(p, peaks):
                 continue
 
-            base = major.intensity if abs(p.intensity - major.intensity) < abs(p.intensity - minor.intensity) else minor.intensity
+            base = (
+                major.intensity
+                if abs(p.intensity - major.intensity)
+                < abs(p.intensity - minor.intensity)
+                else minor.intensity
+            )
             ratio = p.intensity / base if base > 0 else 0
 
             if ratio < 0.5:

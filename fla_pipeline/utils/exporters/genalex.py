@@ -10,6 +10,7 @@ from fla_pipeline.models.genotype import GenotypeResult
 
 from .base import ExporterBase
 
+
 class GenalexExporter(ExporterBase):
     def __init__(self, metadata=None):
         self.metadata = metadata or {}
@@ -61,8 +62,10 @@ class GenalexExporter(ExporterBase):
 
         # Headers
         row1 = [len(markers), len(ordered_uids), len(ordered_pops)] + pop_sizes
-        row2 = ["GenAlEx Codominant Export"] + ["", ""] + [pop for pop in ordered_pops] 
-        header = ["Sample Name", "Pop"] + [m for marker in markers for m in (marker, "")]
+        row2 = ["GenAlEx Codominant Export"] + ["", ""] + [pop for pop in ordered_pops]
+        header = ["Sample Name", "Pop"] + [
+            m for marker in markers for m in (marker, "")
+        ]
 
         # Data rows
         data_rows = []
@@ -83,7 +86,9 @@ class GenalexExporter(ExporterBase):
                     if not alleles:
                         row.extend(["0", "0"])
                     else:
-                        row.extend([str(a) for a in alleles[:2]] + ["0"] * (2 - len(alleles)))
+                        row.extend(
+                            [str(a) for a in alleles[:2]] + ["0"] * (2 - len(alleles))
+                        )
                 else:
                     row.extend(["0", "0"])
             data_rows.append(row)
@@ -97,7 +102,6 @@ class GenalexExporter(ExporterBase):
         writer.writerows(data_rows)
 
         return output.getvalue()
-
 
     def filename(self) -> str:
         return "genalex.csv"

@@ -2,6 +2,7 @@
 
 import numpy as np
 
+
 def find_peak_bounds(x, y, center_x, threshold, max_span=2.0, flat_tolerance=3):
     """
     Enhanced version to handle saturated plateaus by detecting flatness
@@ -43,6 +44,7 @@ def find_peak_bounds(x, y, center_x, threshold, max_span=2.0, flat_tolerance=3):
         right += 1
 
     return left, right
+
 
 def find_suppressed_regions(smap, trace, suppressed_peaks, baseline_percentile=5):
     """

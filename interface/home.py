@@ -2,10 +2,10 @@
 
 import streamlit as st
 
+
 def run():
     st.title("Welcome to Erick's FLA reporter `FLAre`")
-    st.markdown(
-        """
+    st.markdown("""
         This app is designed for visualizing and analyzing **Fragment Length Analysis (FLA)** data.
 
         **Features:**
@@ -16,7 +16,7 @@ def run():
         - Perform clustering & population analysis (PCoA, dendrograms)
 
         **Next step:** Go to the **Upload + Setup** page to begin.
-        """
-    )
+        """)
+
 
 run()

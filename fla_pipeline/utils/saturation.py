@@ -3,9 +3,11 @@
 from scipy.optimize import curve_fit
 import numpy as np
 
+
 # Base Gaussian function
 def gaussian(x, A, mu, sigma):
-    return A * np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
+    return A * np.exp(-((x - mu) ** 2) / (2 * sigma**2))
+
 
 # Fit a Gaussian to given data
 def fit_gaussian_peak(x_data: np.ndarray, y_data: np.ndarray):
@@ -20,8 +22,15 @@ def fit_gaussian_peak(x_data: np.ndarray, y_data: np.ndarray):
     except Exception:
         return None
 
+
 # Robust saturation correction
-def correct_if_saturated(idx: int, smap: np.ndarray, signal: np.ndarray, flank: int = 5, threshold_drop: float = 0.02):
+def correct_if_saturated(
+    idx: int,
+    smap: np.ndarray,
+    signal: np.ndarray,
+    flank: int = 5,
+    threshold_drop: float = 0.02,
+):
     peak_val = signal[idx]
     threshold = peak_val * (1 - threshold_drop)
 

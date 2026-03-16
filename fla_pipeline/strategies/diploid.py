@@ -7,14 +7,16 @@ from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.utils.evaluator import GenotypeEvaluator
 from typing import List
 
-
 DIPLOID_STRATEGY_REGISTRY = {}
+
 
 def register_diploid_strategy(name: str):
     def decorator(cls):
         DIPLOID_STRATEGY_REGISTRY[name] = cls
         return cls
+
     return decorator
+
 
 def get_diploid_caller(strategy_name: str):
     caller_cls = DIPLOID_STRATEGY_REGISTRY.get(strategy_name)
@@ -22,31 +24,47 @@ def get_diploid_caller(strategy_name: str):
         raise ValueError(f"Unknown diploid strategy: {strategy_name}")
     return caller_cls()
 
+
 class BaseDiploidCaller:
-    def fallback_homozygote(self, marker: MarkerConfig, peaks: List[Peak], strategy: str, note: str = "") -> GenotypeResult:
+    def fallback_homozygote(
+        self, marker: MarkerConfig, peaks: List[Peak], strategy: str, note: str = ""
+    ) -> GenotypeResult:
         pos = round(peaks[0].position)
         return GenotypeResult(
             marker=marker.marker,
             alleles=[pos, pos],
             confidence=0.95,
             strategy=strategy,
-            qc_flags=["Only one peak; homozygous call." + (" " + note if note else "")]
+            qc_flags=["Only one peak; homozygous call." + (" " + note if note else "")],
         )
 
 
 @register_diploid_strategy("probabilistic")
 class ProbabilisticCaller(BaseDiploidCaller):
 
-    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig, max_liz_intensity: float = 0.0) -> GenotypeResult:
+    def call_genotype(
+        self,
+        peaks: List[Peak],
+        marker: MarkerConfig,
+        config: GlobalConfig,
+        max_liz_intensity: float = 0.0,
+    ) -> GenotypeResult:
         if not peaks:
-            return GenotypeResult(marker=marker.marker, alleles=[], strategy="probabilistic", qc_flags=["No peaks to call."])
+            return GenotypeResult(
+                marker=marker.marker,
+                alleles=[],
+                strategy="probabilistic",
+                qc_flags=["No peaks to call."],
+            )
 
         peaks = sorted(peaks, key=lambda p: p.intensity, reverse=True)
 
         if len(peaks) == 1:
             return self.fallback_homozygote(marker, peaks, "probabilistic")
 
-        evaluator = GenotypeEvaluator(config, marker, max_liz_intensity=max_liz_intensity)
+        evaluator = GenotypeEvaluator(
+            config, marker, max_liz_intensity=max_liz_intensity
+        )
         top_n = min(10, len(peaks))
 
         results = []
@@ -65,18 +83,27 @@ class ProbabilisticCaller(BaseDiploidCaller):
 
         if best and second and abs(best.confidence - second.confidence) < 0.075:
             best.confidence = round(best.confidence - 0.25, 3)
-            best.qc_flags.append("Alternate peak pairing nearly as likely - ambiguous call. (-0.25)")
+            best.qc_flags.append(
+                "Alternate peak pairing nearly as likely - ambiguous call. (-0.25)"
+            )
 
-        return best or self.fallback_homozygote(marker, peaks, "probabilistic", note="No confident pairing found.")
-
-
+        return best or self.fallback_homozygote(
+            marker, peaks, "probabilistic", note="No confident pairing found."
+        )
 
 
 @register_diploid_strategy("strict_stutter")
 class StrictStutterCaller(BaseDiploidCaller):
-    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig) -> GenotypeResult:
+    def call_genotype(
+        self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig
+    ) -> GenotypeResult:
         if not peaks:
-            return GenotypeResult(marker=marker.marker, alleles=[], strategy="strict_stutter", qc_flags=["No peaks to call."])
+            return GenotypeResult(
+                marker=marker.marker,
+                alleles=[],
+                strategy="strict_stutter",
+                qc_flags=["No peaks to call."],
+            )
 
         peaks = sorted(peaks, key=lambda p: p.intensity, reverse=True)
         major = peaks[0]
@@ -98,7 +125,9 @@ class StrictStutterCaller(BaseDiploidCaller):
                 alleles=[round(major.position)] * 2,
                 confidence=0.90,
                 strategy="strict_stutter",
-                qc_flags=[f"Minor peak ({minor.position:.1f}) may be stutter; homozygous call."]
+                qc_flags=[
+                    f"Minor peak ({minor.position:.1f}) may be stutter; homozygous call."
+                ],
             )
 
         return GenotypeResult(
@@ -106,14 +135,22 @@ class StrictStutterCaller(BaseDiploidCaller):
             alleles=sorted([round(major.position), round(minor.position)]),
             confidence=0.80,
             strategy="strict_stutter",
-            qc_flags=[f"Minor peak included (ratio = {ratio:.2f})."]
+            qc_flags=[f"Minor peak included (ratio = {ratio:.2f})."],
         )
+
 
 @register_diploid_strategy("lenient_ratio")
 class LenientRatioCaller(BaseDiploidCaller):
-    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig) -> GenotypeResult:
+    def call_genotype(
+        self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig
+    ) -> GenotypeResult:
         if not peaks:
-            return GenotypeResult(marker=marker.marker, alleles=[], strategy="lenient_ratio", qc_flags=["No peaks to call."])
+            return GenotypeResult(
+                marker=marker.marker,
+                alleles=[],
+                strategy="lenient_ratio",
+                qc_flags=["No peaks to call."],
+            )
 
         peaks = sorted(peaks, key=lambda p: p.intensity, reverse=True)
         major = peaks[0]
@@ -130,7 +167,7 @@ class LenientRatioCaller(BaseDiploidCaller):
                 alleles=sorted([round(major.position), round(minor.position)]),
                 confidence=0.85,
                 strategy="lenient_ratio",
-                qc_flags=[f"Calling heterozygote (ratio = {ratio:.2f})."]
+                qc_flags=[f"Calling heterozygote (ratio = {ratio:.2f})."],
             )
         else:
             return GenotypeResult(
@@ -138,14 +175,24 @@ class LenientRatioCaller(BaseDiploidCaller):
                 alleles=[round(major.position)] * 2,
                 confidence=0.80,
                 strategy="lenient_ratio",
-                qc_flags=[f"Minor peak below threshold (ratio = {ratio:.2f}); homozygous call."]
+                qc_flags=[
+                    f"Minor peak below threshold (ratio = {ratio:.2f}); homozygous call."
+                ],
             )
+
 
 @register_diploid_strategy("haploid")
 class HaploidCaller(BaseDiploidCaller):
-    def call_genotype(self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig, **kwargs) -> GenotypeResult:
+    def call_genotype(
+        self, peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig, **kwargs
+    ) -> GenotypeResult:
         if not peaks:
-            return GenotypeResult(marker=marker.marker, alleles=[], strategy="haploid", qc_flags=["No peaks to call."])
+            return GenotypeResult(
+                marker=marker.marker,
+                alleles=[],
+                strategy="haploid",
+                qc_flags=["No peaks to call."],
+            )
 
         major = max(peaks, key=lambda p: p.intensity)
         return GenotypeResult(
@@ -153,5 +200,5 @@ class HaploidCaller(BaseDiploidCaller):
             alleles=[round(major.position)],
             confidence=1.0,
             strategy="haploid",
-            qc_flags=["Haploid call from major peak."]
+            qc_flags=["Haploid call from major peak."],
         )

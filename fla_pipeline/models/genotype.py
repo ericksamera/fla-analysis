@@ -20,7 +20,7 @@ class GenotypeResult:
             "is_valid": bool(self.is_valid),
             "strategy": self.strategy,
             "qc_flags": self.qc_flags,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     @staticmethod
@@ -32,7 +32,7 @@ class GenotypeResult:
             is_valid=bool(data.get("is_valid", True)),
             strategy=data.get("strategy"),
             qc_flags=data.get("qc_flags", []),
-            metadata=data.get("metadata", {})
+            metadata=data.get("metadata", {}),
         )
 
     @property

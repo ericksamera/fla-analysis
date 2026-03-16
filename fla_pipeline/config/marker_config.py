@@ -4,6 +4,7 @@ from pydantic import BaseModel, model_validator
 from typing import Optional, Tuple, Dict, Any
 from fla_pipeline.config.global_config import GlobalConfig
 
+
 class MarkerConfig(BaseModel):
     marker: str
     channel: str
@@ -25,9 +26,13 @@ class MarkerConfig(BaseModel):
     def validate_required_fields(self) -> "MarkerConfig":
         if self.binning_enabled:
             if not self.bins:
-                raise ValueError(f"Marker '{self.marker}': bins are required when binning is enabled.")
+                raise ValueError(
+                    f"Marker '{self.marker}': bins are required when binning is enabled."
+                )
             if self.repeat_unit is None:
-                raise ValueError(f"Marker '{self.marker}': repeat_unit is required when binning is enabled.")
+                raise ValueError(
+                    f"Marker '{self.marker}': repeat_unit is required when binning is enabled."
+                )
 
         if not self.channel:
             raise ValueError(f"Marker '{self.marker}': channel is required.")

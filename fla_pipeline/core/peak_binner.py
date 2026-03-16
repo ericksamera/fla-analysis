@@ -2,13 +2,15 @@
 
 from fla_pipeline.models.peak import Peak
 from fla_pipeline.config.global_config import GlobalConfig
-from fla_pipeline.config.marker_config import MarkerConfig 
+from fla_pipeline.config.marker_config import MarkerConfig
 from typing import List, Tuple, Dict
 from collections import defaultdict
 import numpy as np
 
 
-def bin_peaks(peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig) -> Tuple[List[Peak], List[str]]:
+def bin_peaks(
+    peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig
+) -> Tuple[List[Peak], List[str]]:
     bmin, bmax = marker.bins
     repeat = marker.repeat_unit or 1
     tolerance = repeat * config.bin_tolerance
@@ -39,7 +41,8 @@ def bin_peaks(peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig) -> 
         filtered = []
         for i, pk in enumerate(bin_peaks):
             too_close = any(
-                abs(pk.position - other.position) < 1.0 and pk.intensity < other.intensity
+                abs(pk.position - other.position) < 1.0
+                and pk.intensity < other.intensity
                 for other in bin_peaks[:i]
             )
             if not too_close:
@@ -47,15 +50,19 @@ def bin_peaks(peaks: List[Peak], marker: MarkerConfig, config: GlobalConfig) -> 
         if filtered:
             strongest = max(filtered, key=lambda p: p.intensity)
             # Snap the peak position to the bin it's assigned to
-            assigned_peaks.append(Peak(
-                position=bin_pos,  # << use the bin, not the raw peak
-                intensity=strongest.intensity,
-                saturated=strongest.saturated,
-                note=strongest.note + f" (snapped from {strongest.position:.2f})"
-            ))
+            assigned_peaks.append(
+                Peak(
+                    position=bin_pos,  # << use the bin, not the raw peak
+                    intensity=strongest.intensity,
+                    saturated=strongest.saturated,
+                    note=strongest.note + f" (snapped from {strongest.position:.2f})",
+                )
+            )
 
     if not assigned_peaks:
-        return [], [f"All peaks filtered due to proximity or weakness for {marker.marker}."]
+        return [], [
+            f"All peaks filtered due to proximity or weakness for {marker.marker}."
+        ]
 
     # Step 4: Intensity threshold (relative to max in retained peaks)
     max_intensity = max(p.intensity for p in assigned_peaks)

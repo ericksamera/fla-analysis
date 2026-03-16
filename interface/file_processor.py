@@ -28,7 +28,12 @@ def run():
 
     instantiate_global_config()
 
-    if st.button("Run Genotype Calling", type="primary", use_container_width=True, disabled=not (st.session_state.samples and st.session_state.marker_list)):
+    if st.button(
+        "Run Genotype Calling",
+        type="primary",
+        use_container_width=True,
+        disabled=not (st.session_state.samples and st.session_state.marker_list),
+    ):
         with st.spinner("Processing all uploaded samples..."):
             normalize_session_state()
 
@@ -42,7 +47,9 @@ def run():
                     try:
                         marker_cfgs.append(MarkerConfig(**m))
                     except Exception as e:
-                        st.warning(f"Skipping malformed marker config at index {i}: {e}")
+                        st.warning(
+                            f"Skipping malformed marker config at index {i}: {e}"
+                        )
                 else:
                     msg = f"Unknown marker config type at index {i}: {type(m)}"
                     st.warning(msg)
@@ -55,22 +62,27 @@ def run():
                     for k, v in result["marker_results"].items()
                 }
 
-                sample.metadata["max_liz_intensity"] = result.get("max_liz_intensity", 0.0)
+                sample.metadata["max_liz_intensity"] = result.get(
+                    "max_liz_intensity", 0.0
+                )
 
                 for marker, geno in sample.marker_results.items():
-                    all_calls.append({
-                        "sample_uid": sample.sample_uid,
-                        "sample_id": sid,
-                        "Sample Name": sample.metadata.get("Sample Name", sid),
-                        "Marker": marker,
-                        "Genotype": "/".join([str(i) for i in geno.alleles]),
-                        "Confidence": geno.confidence,
-                        "QC Flags": "; ".join(geno.qc_flags),
-                    })
+                    all_calls.append(
+                        {
+                            "sample_uid": sample.sample_uid,
+                            "sample_id": sid,
+                            "Sample Name": sample.metadata.get("Sample Name", sid),
+                            "Marker": marker,
+                            "Genotype": "/".join([str(i) for i in geno.alleles]),
+                            "Confidence": geno.confidence,
+                            "QC Flags": "; ".join(geno.qc_flags),
+                        }
+                    )
 
             st.session_state.genotype_results_df = pd.DataFrame(all_calls)
             st.success(f"Processed {len(st.session_state.samples)} samples.")
             st.rerun()
     global_config_ui()
+
 
 run()

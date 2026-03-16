@@ -2,6 +2,7 @@ import pandas as pd
 from collections import Counter
 from scipy.stats import chisquare
 
+
 def compute_hwe_stats(genotype_df: pd.DataFrame, marker_configs: dict) -> list[dict]:
     """
     Computes per-marker allele frequencies and HWE test results.
@@ -23,7 +24,9 @@ def compute_hwe_stats(genotype_df: pd.DataFrame, marker_configs: dict) -> list[d
 
         allele_counts = Counter(alleles)
         total_alleles = sum(allele_counts.values())
-        freqs = {allele: count / total_alleles for allele, count in allele_counts.items()}
+        freqs = {
+            allele: count / total_alleles for allele, count in allele_counts.items()
+        }
         sorted_alleles = sorted(freqs.items(), key=lambda x: -x[1])
 
         entry = {
@@ -31,7 +34,7 @@ def compute_hwe_stats(genotype_df: pd.DataFrame, marker_configs: dict) -> list[d
             "allele_frequencies": {a: round(f, 4) for a, f in sorted_alleles},
             "p_value": None,
             "hwe_tested": False,
-            "hwe_message": ""
+            "hwe_message": "",
         }
 
         if len(allele_counts) == 2:
@@ -41,7 +44,7 @@ def compute_hwe_stats(genotype_df: pd.DataFrame, marker_configs: dict) -> list[d
             expected = {
                 f"{alleles_sorted[0]}/{alleles_sorted[0]}": p**2 * len(sub_df),
                 f"{alleles_sorted[1]}/{alleles_sorted[1]}": q**2 * len(sub_df),
-                f"{alleles_sorted[0]}/{alleles_sorted[1]}": 2*p*q * len(sub_df),
+                f"{alleles_sorted[0]}/{alleles_sorted[1]}": 2 * p * q * len(sub_df),
             }
 
             observed = Counter(sub_df["Genotype"])
@@ -64,11 +67,15 @@ def compute_hwe_stats(genotype_df: pd.DataFrame, marker_configs: dict) -> list[d
 
 def display_hwe_results(hwe_results: list[dict]):
     import streamlit as st
+
     st.subheader("Hardy-Weinberg Equilibrium & Allele Summary")
     with st.expander("Per-marker allele frequencies and HWE test", expanded=False):
         for result in hwe_results:
             st.markdown(f"**{result['marker']}**")
-            st.write("Allele frequencies:", {a: f"{f:.2f}" for a, f in result["allele_frequencies"].items()})
+            st.write(
+                "Allele frequencies:",
+                {a: f"{f:.2f}" for a, f in result["allele_frequencies"].items()},
+            )
 
             if result["hwe_tested"]:
                 st.write(f"Hardy-Weinberg p-value: `{result['p_value']}`")

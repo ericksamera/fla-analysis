@@ -14,7 +14,7 @@ class Peak:
             "position": float(self.position),
             "intensity": float(self.intensity),
             "saturated": bool(self.saturated),
-            "note": self.note or ""
+            "note": self.note or "",
         }
 
     @staticmethod
@@ -23,7 +23,7 @@ class Peak:
             position=float(data["position"]),
             intensity=float(data["intensity"]),
             saturated=bool(data.get("saturated", False)),
-            note=data.get("note", "")
+            note=data.get("note", ""),
         )
 
     @property

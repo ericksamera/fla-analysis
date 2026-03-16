@@ -6,6 +6,7 @@ import os
 from fla_pipeline.config import GlobalConfig, MarkerConfig
 from fla_pipeline.pipeline import run_pipeline
 
+
 def parse_marker_config(json_path: str) -> list[MarkerConfig]:
     with open(json_path) as f:
         raw = json.load(f)
@@ -14,6 +15,7 @@ def parse_marker_config(json_path: str) -> list[MarkerConfig]:
         raise ValueError("Marker config JSON must be a list of marker definitions.")
 
     return [MarkerConfig(**entry) for entry in raw]
+
 
 def sanitize_for_json(obj):
     """Recursively sanitize an object for JSON serialization."""
@@ -29,6 +31,7 @@ def sanitize_for_json(obj):
         return sanitize_for_json(vars(obj))
     else:
         return str(obj)  # last-resort fallback
+
 
 def main():
     parser = argparse.ArgumentParser(description="Run FLA diploid pipeline.")
@@ -58,6 +61,7 @@ def main():
         print(f"[✓] Output written to: {args.output}")
     else:
         print(json.dumps(sanitized, indent=4))
+
 
 if __name__ == "__main__":
     main()

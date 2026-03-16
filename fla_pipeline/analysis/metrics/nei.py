@@ -5,10 +5,13 @@ from collections import Counter
 from typing import Optional
 import numpy as np
 
+
 class NeiDistanceMetric(BaseDistanceMetric):
     name = "nei"
 
-    def compute(self, geno1: GenotypeResult, geno2: GenotypeResult, marker_cfg: MarkerConfig) -> Optional[float]:
+    def compute(
+        self, geno1: GenotypeResult, geno2: GenotypeResult, marker_cfg: MarkerConfig
+    ) -> Optional[float]:
         if not geno1.alleles or not geno2.alleles:
             self.log(f"Missing alleles for marker {marker_cfg.marker}")
             return None

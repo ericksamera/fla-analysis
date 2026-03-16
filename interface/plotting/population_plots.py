@@ -4,11 +4,12 @@ import pandas as pd
 import plotly.express as px
 from typing import Optional
 
+
 def plot_pcoa(
     coords: pd.DataFrame,
     metadata: dict,
     color_by: Optional[str] = None,
-    title: str = "PCoA of Genetic Distances"
+    title: str = "PCoA of Genetic Distances",
 ):
     df = coords.copy()
     df["SampleID"] = df.index
@@ -40,13 +41,11 @@ def plot_pcoa(
 
     fig.update_traces(
         textposition="top center",
-        marker=dict(size=10, line=dict(width=0.5, color="DarkSlateGrey"))
+        marker=dict(size=10, line=dict(width=0.5, color="DarkSlateGrey")),
     )
 
     fig.update_layout(
-        height=550,
-        margin=dict(t=40, b=40, l=40, r=40),
-        hovermode="closest"
+        height=550, margin=dict(t=40, b=40, l=40, r=40), hovermode="closest"
     )
 
     return fig

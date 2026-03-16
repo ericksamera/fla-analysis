@@ -7,14 +7,12 @@ from typing import Optional
 import itertools
 import numpy as np
 
+
 class BruvoDistanceMetric(BaseDistanceMetric):
     name = "bruvo"
 
     def compute(
-        self,
-        geno1: GenotypeResult,
-        geno2: GenotypeResult,
-        marker_cfg: MarkerConfig
+        self, geno1: GenotypeResult, geno2: GenotypeResult, marker_cfg: MarkerConfig
     ) -> Optional[float]:
         alleles1 = sorted(geno1.alleles)
         alleles2 = sorted(geno2.alleles)
@@ -28,7 +26,9 @@ class BruvoDistanceMetric(BaseDistanceMetric):
         g2_counts = [round(a / repeat_unit) for a in alleles2]
 
         score = self._bruvo_distance(g1_counts, g2_counts)
-        self.log(f"{marker_cfg.marker}: Bruvo({g1_counts} vs {g2_counts}) = {score:.4f}")
+        self.log(
+            f"{marker_cfg.marker}: Bruvo({g1_counts} vs {g2_counts}) = {score:.4f}"
+        )
         return score
 
     def _bruvo_distance(self, g1, g2) -> float:

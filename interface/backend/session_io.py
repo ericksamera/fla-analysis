@@ -11,6 +11,7 @@ from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.config.global_config import GlobalConfig
 from fla_pipeline.analysis.config import DistanceConfig
 
+
 def normalize_session_state():
     """Ensure key session_state entries are the correct object types."""
 
@@ -22,8 +23,12 @@ def normalize_session_state():
         ]
     if "config" in st.session_state and isinstance(st.session_state["config"], dict):
         st.session_state["config"] = GlobalConfig(**st.session_state["config"])
-    if "distance_config" in st.session_state and isinstance(st.session_state["distance_config"], dict):
-        st.session_state["distance_config"] = DistanceConfig(**st.session_state["distance_config"])
+    if "distance_config" in st.session_state and isinstance(
+        st.session_state["distance_config"], dict
+    ):
+        st.session_state["distance_config"] = DistanceConfig(
+            **st.session_state["distance_config"]
+        )
 
 
 def sanitize_for_json(obj):
@@ -70,12 +75,13 @@ def deserialize_session(data: Dict):
 
     st.session_state["distance_config"] = session.distance_config
 
+
 @st.cache_data(show_spinner="Serializing session…")
 def serialize_session_cached(
     samples_json: list,
     marker_list_json: list,
     config_json: dict,
-    distance_config_json: dict | None = None
+    distance_config_json: dict | None = None,
 ) -> dict:
     session_config = SessionConfig(
         version=__VERSION__,
@@ -89,7 +95,9 @@ def serialize_session_cached(
 
 def serialize_session() -> Dict:
     # Defensive guards to ensure session_state is clean
-    if "config" not in st.session_state or not isinstance(st.session_state["config"], GlobalConfig):
+    if "config" not in st.session_state or not isinstance(
+        st.session_state["config"], GlobalConfig
+    ):
         st.session_state["config"] = GlobalConfig()
 
     if "marker_list" not in st.session_state:
@@ -108,8 +116,7 @@ def serialize_session() -> Dict:
         version=__VERSION__,
         samples=[s.to_dict() for s in samples.values()],
         marker_list=[
-            m if isinstance(m, MarkerConfig) else MarkerConfig(**m)
-            for m in marker_list
+            m if isinstance(m, MarkerConfig) else MarkerConfig(**m) for m in marker_list
         ],
         global_config=global_config,
         distance_config=distance_config,
@@ -130,22 +137,23 @@ def deserialize_session(data: Dict):
 
 # --- UI Hooks ---
 
+
 def session_export_button():
-    if st.button("Export", use_container_width=True, disabled=not bool(st.session_state.config)):
+    if st.button(
+        "Export", use_container_width=True, disabled=not bool(st.session_state.config)
+    ):
 
         samples_json = [s.to_dict() for s in st.session_state["samples"].values()]
         marker_list_json = [m.model_dump() for m in st.session_state["marker_list"]]
         config_json = st.session_state["config"].model_dump()
         distance_config_json = (
             st.session_state["distance_config"].model_dump()
-            if st.session_state.get("distance_config") else None
+            if st.session_state.get("distance_config")
+            else None
         )
 
         session_dict = serialize_session_cached(
-            samples_json,
-            marker_list_json,
-            config_json,
-            distance_config_json
+            samples_json, marker_list_json, config_json, distance_config_json
         )
 
         st.download_button(
@@ -153,9 +161,8 @@ def session_export_button():
             data=json.dumps(session_dict, indent=2),
             file_name="fla_session.json",
             mime="application/json",
-            use_container_width=True
+            use_container_width=True,
         )
-
 
 
 def session_import(file):
@@ -190,7 +197,14 @@ def session_restart_dialog():
     if st.button("Confirm Restart", type="primary"):
         st.session_state.clear()
         st.rerun()
-    
+
+
 def session_restart_button():
-    if st.button("", type='primary', key="restart_everything", icon=":material/restart_alt:", use_container_width=True):
+    if st.button(
+        "",
+        type="primary",
+        key="restart_everything",
+        icon=":material/restart_alt:",
+        use_container_width=True,
+    ):
         session_restart_dialog()

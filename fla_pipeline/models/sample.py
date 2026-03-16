@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 import numpy as np
 from uuid import uuid4
 
+
 @dataclass
 class Sample:
     sample_id: str
@@ -24,13 +25,17 @@ class Sample:
             "sample_uid": self.sample_uid,
             "metadata": self.metadata,
             "run_metrics": self.run_metrics,
-            "fsa_data": {
-                "name": self.fsa_data.get("name"),
-                "smap": self.fsa_data["smap"].tolist(),
-                "channels": {
-                    k: v.tolist() for k, v in self.fsa_data["channels"].items()
+            "fsa_data": (
+                {
+                    "name": self.fsa_data.get("name"),
+                    "smap": self.fsa_data["smap"].tolist(),
+                    "channels": {
+                        k: v.tolist() for k, v in self.fsa_data["channels"].items()
+                    },
                 }
-            } if self.fsa_data else None,
+                if self.fsa_data
+                else None
+            ),
             "peaks": {
                 k: [p.to_dict() for p in v] for k, v in (self.peaks or {}).items()
             },
@@ -38,7 +43,7 @@ class Sample:
             "marker_results": {
                 k: v.to_dict() if hasattr(v, "to_dict") else v
                 for k, v in (self.marker_results or {}).items()
-            }
+            },
         }
 
     @staticmethod
@@ -49,7 +54,7 @@ class Sample:
             sample_uid=data.get("sample_uid", str(uuid4())),
             metadata=data.get("metadata", {}),
             run_metrics=data.get("run_metrics", {}),
-            suppressed_peaks=data.get("suppressed_peaks", {})
+            suppressed_peaks=data.get("suppressed_peaks", {}),
         )
 
         if "fsa_data" in data and data["fsa_data"]:
@@ -58,7 +63,7 @@ class Sample:
                 "smap": np.array(data["fsa_data"]["smap"]),
                 "channels": {
                     k: np.array(v) for k, v in data["fsa_data"]["channels"].items()
-                }
+                },
             }
 
         if "peaks" in data:

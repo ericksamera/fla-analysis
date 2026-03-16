@@ -2,7 +2,11 @@
 
 import streamlit as st
 from fla_pipeline.models.sample import Sample
-from interface.plotting.channel_traces import make_total_trace_figure, make_per_channel_figure
+from interface.plotting.channel_traces import (
+    make_total_trace_figure,
+    make_per_channel_figure,
+)
+
 
 class PeakVisualizerApp:
     def __init__(self):
@@ -31,9 +35,9 @@ class PeakVisualizerApp:
 
         results = self.sample.marker_results
         icon_map = {
-            'were removed': ':material/filter_alt:',
-            'but within': ':material/auto_fix_normal:',
-            'homozygous': ':material/mode:',
+            "were removed": ":material/filter_alt:",
+            "but within": ":material/auto_fix_normal:",
+            "homozygous": ":material/mode:",
         }
 
         self._display_genotyping()
@@ -41,7 +45,9 @@ class PeakVisualizerApp:
         with st.sidebar:
             marker_list = list(results.keys())
             marker_selected = st.selectbox("Select Marker", marker_list)
-            self._display_qc(marker_selected, results[marker_selected].qc_flags, icon_map)
+            self._display_qc(
+                marker_selected, results[marker_selected].qc_flags, icon_map
+            )
 
     def _display_qc(self, marker: str, flags: list[str], icon_map: dict):
         with st.container(height=200, border=False):
@@ -49,7 +55,10 @@ class PeakVisualizerApp:
                 st.success("No QC flags!", icon=":material/check_circle_outline:")
                 return
             for flag in flags:
-                icon = next((icon for substr, icon in icon_map.items() if substr in flag), ":material/info:")
+                icon = next(
+                    (icon for substr, icon in icon_map.items() if substr in flag),
+                    ":material/info:",
+                )
                 st.warning(flag, icon=icon)
 
     def _display_genotyping(self):
@@ -60,13 +69,19 @@ class PeakVisualizerApp:
 
                 for marker_name, result in self.sample.marker_results.items():
                     mcfg = marker_configs.get(marker_name, {})
-                    table_data.append({
-                        "Marker": marker_name,
-                        "Dye": mcfg.channel,
-                        "Repeat": mcfg.repeat_unit,
-                        "Genotype": "/".join(map(str, result.alleles)) if result.alleles else "-",
-                        "Conf.": round(result.confidence, 3)
-                    })
+                    table_data.append(
+                        {
+                            "Marker": marker_name,
+                            "Dye": mcfg.channel,
+                            "Repeat": mcfg.repeat_unit,
+                            "Genotype": (
+                                "/".join(map(str, result.alleles))
+                                if result.alleles
+                                else "-"
+                            ),
+                            "Conf.": round(result.confidence, 3),
+                        }
+                    )
 
                 st.dataframe(table_data, use_container_width=True, hide_index=True)
 
@@ -74,7 +89,11 @@ class PeakVisualizerApp:
         fig = make_total_trace_figure(
             self.sample,
             st.session_state.marker_list,
-            st.session_state.config.model_dump() if hasattr(st.session_state.config, "model_dump") else {}
+            (
+                st.session_state.config.model_dump()
+                if hasattr(st.session_state.config, "model_dump")
+                else {}
+            ),
         )
         st.plotly_chart(fig, use_container_width=True)
 
@@ -88,7 +107,11 @@ class PeakVisualizerApp:
                     ch,
                     self.sample,
                     st.session_state.marker_list,
-                    st.session_state.config.model_dump() if hasattr(st.session_state.config, "model_dump") else {}
+                    (
+                        st.session_state.config.model_dump()
+                        if hasattr(st.session_state.config, "model_dump")
+                        else {}
+                    ),
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -96,5 +119,6 @@ class PeakVisualizerApp:
 # Streamlit entrypoint
 def run():
     PeakVisualizerApp().render()
+
 
 run()

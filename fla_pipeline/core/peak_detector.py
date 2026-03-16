@@ -8,10 +8,9 @@ from typing import Dict, List, Tuple
 import numpy as np
 from scipy.signal import find_peaks
 
+
 def detect_peaks(
-    smap: np.ndarray,
-    channels: Dict[str, np.ndarray],
-    config: GlobalConfig
+    smap: np.ndarray, channels: Dict[str, np.ndarray], config: GlobalConfig
 ) -> Tuple[Dict[str, List[Peak]], float]:
     peak_dict: Dict[str, List[Peak]] = {}
 
@@ -21,9 +20,7 @@ def detect_peaks(
             peak_indices, _ = find_peaks(intensity_array, height=100, distance=3)
         else:
             peak_indices, _ = find_peaks(
-                intensity_array,
-                height=config.min_peak_height,
-                distance=3
+                intensity_array, height=config.min_peak_height, distance=3
             )
 
         peaks: List[Peak] = []
@@ -36,7 +33,9 @@ def detect_peaks(
             saturated = raw_intensity >= config.instrument_saturation_value
 
             if saturated:
-                corrected_intensity, corrected_position, width = correct_if_saturated(idx, smap, intensity_array)
+                corrected_intensity, corrected_position, width = correct_if_saturated(
+                    idx, smap, intensity_array
+                )
                 note = f"Saturated; corrected via Gaussian fit (μ={corrected_position:.2f}, FWHM={width:.2f})"
             else:
                 corrected_intensity = raw_intensity
@@ -48,16 +47,14 @@ def detect_peaks(
                 position=round(corrected_position, 2),
                 intensity=round(corrected_intensity, 2),
                 saturated=saturated,
-                note=note
+                note=note,
             )
             peak.corrected_intensity = round(corrected_intensity, 2)
             peak.width = width
 
             peaks.append(peak)
 
-
             peak_dict[ch_name] = peaks
-
 
     # Step 2: Cross-channel artifact detection
     all_peaks = []
@@ -71,7 +68,6 @@ def detect_peaks(
         key = round(pos, 1)  # or 0.2 for tighter tolerance
         position_map[key].append((ch, intensity, pk))
 
-
     suppressed_peaks = defaultdict(list)
     for shared_pos, peak_group in position_map.items():
         if len(peak_group) < 2:
@@ -83,7 +79,7 @@ def detect_peaks(
             candidates = sorted(
                 non_liz_peaks,
                 key=lambda x: getattr(x[2], "corrected_intensity", x[1]),
-                reverse=True
+                reverse=True,
             )
             dominant_ch, dom_intensity, dom_pk = candidates[0]
 
@@ -93,9 +89,6 @@ def detect_peaks(
         else:
             continue  # skip suppression entirely if only L
 
-
-
-
         shared_rounded = round(dom_pk.position, 1)
 
         for ch, intensity, pk in peak_group[1:]:
@@ -104,7 +97,9 @@ def detect_peaks(
 
             ratio = intensity / dom_intensity if dom_intensity else 0
             if ratio >= 0.1:
-                pk.note += f" Suppressed: pull-up from {dominant_ch}, ratio={ratio:.2f}."
+                pk.note += (
+                    f" Suppressed: pull-up from {dominant_ch}, ratio={ratio:.2f}."
+                )
                 suppressed_peaks[ch].append((pk.position, intensity))
 
                 peak_dict[ch] = [

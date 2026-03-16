@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 
+
 def run():
 
     def add_population_group():
@@ -31,7 +32,7 @@ def run():
                 label="Population Groups (click to delete.)",
                 options=st.session_state["population_groups"],
                 selection_mode="single",
-                key="group_pills"
+                key="group_pills",
             )
             if selection:
                 st.session_state["population_groups"].remove(selection)
@@ -42,13 +43,11 @@ def run():
                 key="new_group_name",
                 on_change=add_population_group,
                 label_visibility="collapsed",
-                placeholder="Type name + Enter to add"
+                placeholder="Type name + Enter to add",
             )
 
         with right:
             pass
-
-
 
     # Aggregate sample metadata
     rows = []
@@ -64,24 +63,22 @@ def run():
 
         all_populations.add(meta["Population"])
 
-        rows.append({
-            "UID": sample.sample_uid,
-            "Filename": sid + ".fsa",
-            "Sample Name": meta.get("Sample Name", sid.split("_")[0]),
-            "Population": meta.get("Population", "Unknown")
-        })
-
+        rows.append(
+            {
+                "UID": sample.sample_uid,
+                "Filename": sid + ".fsa",
+                "Sample Name": meta.get("Sample Name", sid.split("_")[0]),
+                "Population": meta.get("Population", "Unknown"),
+            }
+        )
 
     df = pd.DataFrame(rows)
-    
 
     # --- Dynamic dropdown for population field ---
     pop_options = st.session_state.get("population_groups", []) or ["Unknown"]
     column_config = {
         "Population": st.column_config.SelectboxColumn(
-            label="Population",
-            options=pop_options,
-            required=True
+            label="Population", options=pop_options, required=True
         )
     }
 
@@ -92,7 +89,7 @@ def run():
         disabled=["Filename"],
         column_config=column_config,
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
     )
 
     if st.button("💾 Save Metadata Changes"):
@@ -104,9 +101,9 @@ def run():
                     s.metadata["Population"] = row["Population"]
                     break
             st.session_state.samples[sid].metadata = {
-                k: row[k] for k in ["Sample Name", "Population"]
-                if pd.notna(row[k])
+                k: row[k] for k in ["Sample Name", "Population"] if pd.notna(row[k])
             }
         st.success("Metadata updated.")
+
 
 run()

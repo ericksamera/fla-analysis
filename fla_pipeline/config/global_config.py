@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+
 class GlobalConfig(BaseModel):
     ploidy: int = 2
     min_peak_height: int = 1000

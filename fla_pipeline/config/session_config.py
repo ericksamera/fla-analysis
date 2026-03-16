@@ -6,6 +6,7 @@ from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.config.distance_config import DistanceConfig
 from typing import List, Dict, Any, Optional
 
+
 class SessionConfig(BaseModel):
     version: str
     samples: List[Dict[str, Any]]

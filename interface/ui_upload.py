@@ -16,6 +16,7 @@ def save_temp_file(uploaded_file):
     temp_file.close()
     return temp_file.name
 
+
 @st.dialog("Delete all files (and associated samples)?", width="small")
 def clear_files_dialog():
     """
@@ -55,14 +56,17 @@ def file_upload_dialog():
             sample_id = filename_root
             sample_name = filename_root.split("_")[0]
 
-            if not any(existing["name"] == f.name for existing in st.session_state.uploaded_files):
+            if not any(
+                existing["name"] == f.name
+                for existing in st.session_state.uploaded_files
+            ):
                 sample = Sample(sample_id=sample_id, file_path=temp_path)
                 try:
                     sample.fsa_data = load_fsa(temp_path)
                     peak_dict, max_liz, suppressed_peaks = detect_peaks(
                         sample.fsa_data["smap"],
                         sample.fsa_data["channels"],
-                        config=st.session_state.config
+                        config=st.session_state.config,
                     )
                     sample.suppressed_peaks = suppressed_peaks
                     sample.peaks = peak_dict
@@ -70,11 +74,9 @@ def file_upload_dialog():
                     sample.metadata["Sample Name"] = sample_name
 
                     st.session_state.samples[sample_id] = sample
-                    st.session_state.uploaded_files.append({
-                        "name": f.name,
-                        "sample_name": sample_name,
-                        "path": temp_path
-                    })
+                    st.session_state.uploaded_files.append(
+                        {"name": f.name, "sample_name": sample_name, "path": temp_path}
+                    )
                     updated = True
                 except Exception as e:
                     st.error(f"Error processing {f.name}: {e}")
@@ -89,19 +91,18 @@ def show_uploaded_files_table():
         st.info("No files uploaded yet.")
         return
 
-    df = pd.DataFrame([
-        {
-            "Filename": f["name"],
-            "Sample Name": f["sample_name"],
-            "Delete?": False
-        } for f in st.session_state.uploaded_files
-    ])
+    df = pd.DataFrame(
+        [
+            {"Filename": f["name"], "Sample Name": f["sample_name"], "Delete?": False}
+            for f in st.session_state.uploaded_files
+        ]
+    )
 
     edited = st.data_editor(
         df,
         use_container_width=True,
         num_rows="fixed",
-        column_config={"Filename": st.column_config.Column(disabled=True)}
+        column_config={"Filename": st.column_config.Column(disabled=True)},
     )
 
     for i, row in edited.iterrows():
@@ -115,7 +116,9 @@ def show_uploaded_files_table():
     to_delete = edited[edited["Delete?"]].index.tolist()
     if to_delete:
         st.session_state.uploaded_files = [
-            f for i, f in enumerate(st.session_state.uploaded_files) if i not in to_delete
+            f
+            for i, f in enumerate(st.session_state.uploaded_files)
+            if i not in to_delete
         ]
         for i in to_delete:
             filename = df.iloc[i]["Filename"]
@@ -128,13 +131,23 @@ def upload_file_ui():
     if st.session_state.uploaded_files:
         col_upload, col_clear = st.columns([6, 1])
         with col_upload:
-            if st.button("Upload Files", icon=":material/upload:", use_container_width=True):
+            if st.button(
+                "Upload Files", icon=":material/upload:", use_container_width=True
+            ):
                 file_upload_dialog()
         with col_clear:
-            if st.button("", icon=":material/delete_sweep:", use_container_width=True, type="primary", key="clear_uploaded_files"):
+            if st.button(
+                "",
+                icon=":material/delete_sweep:",
+                use_container_width=True,
+                type="primary",
+                key="clear_uploaded_files",
+            ):
                 clear_files_dialog()
     else:
-        if st.button("Upload Files", icon=":material/upload:", use_container_width=True):
+        if st.button(
+            "Upload Files", icon=":material/upload:", use_container_width=True
+        ):
             file_upload_dialog()
 
     show_uploaded_files_table()

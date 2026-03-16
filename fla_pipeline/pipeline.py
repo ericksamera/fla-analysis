@@ -9,13 +9,14 @@ from fla_pipeline.strategies.diploid import get_diploid_caller
 from fla_pipeline.models.genotype import GenotypeResult
 from typing import Dict, Any
 
-from fla_pipeline.models.sample import Sample 
+from fla_pipeline.models.sample import Sample
+
 
 def run_pipeline(
     file_path: str,
     config: GlobalConfig,
     markers: list[MarkerConfig],
-    sample: Sample | None = None
+    sample: Sample | None = None,
 ) -> Dict[str, Any]:
     # Use existing data if available
     if sample and sample.fsa_data and sample.peaks:
@@ -27,7 +28,9 @@ def run_pipeline(
         fsa_data = load_fsa(file_path)
         smap = fsa_data["smap"]
         channels = fsa_data["channels"]
-        peak_dict, max_liz_intensity, suppressed_peaks = detect_peaks(smap, channels, config)
+        peak_dict, max_liz_intensity, suppressed_peaks = detect_peaks(
+            smap, channels, config
+        )
 
         # If a Sample object was passed, populate it
         if sample is not None:
@@ -55,11 +58,15 @@ def run_pipeline(
         if per_marker_cfg.ploidy <= 2:
             caller = get_diploid_caller(per_marker_cfg.diploid_strategy)
         elif per_marker_cfg.ploidy > 2:
-            raise NotImplementedError("Polyploid genotype calling is not yet supported.")
+            raise NotImplementedError(
+                "Polyploid genotype calling is not yet supported."
+            )
         else:
             raise ValueError("Invalid ploidy setting.")
 
-        genotype: GenotypeResult = caller.call_genotype(binned_peaks, marker, per_marker_cfg, max_liz_intensity=max_liz_intensity)
+        genotype: GenotypeResult = caller.call_genotype(
+            binned_peaks, marker, per_marker_cfg, max_liz_intensity=max_liz_intensity
+        )
         genotype.qc_flags = bin_flags + genotype.qc_flags
 
         if genotype.confidence < per_marker_cfg.min_genotype_confidence:
@@ -80,5 +87,5 @@ def run_pipeline(
         },
         "marker_results": marker_results,
         "max_liz_intensity": max_liz_intensity,
-        "suppressed_peaks": suppressed_peaks
+        "suppressed_peaks": suppressed_peaks,
     }

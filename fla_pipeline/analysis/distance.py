@@ -17,12 +17,13 @@ DISTANCE_REGISTRY = {
     # etc.
 }
 
+
 class DistanceCalculator:
     def __init__(
         self,
         genotype_matrix: Dict[str, Dict[str, GenotypeResult]],
         marker_configs: Dict[str, MarkerConfig],
-        sample_metadata: Optional[Dict[str, Dict]] = None
+        sample_metadata: Optional[Dict[str, Dict]] = None,
     ):
         self.genotypes = genotype_matrix  # sample -> marker -> GenotypeResult
         self.marker_configs = marker_configs
@@ -87,7 +88,9 @@ class DistanceCalculator:
                 continue
 
             sample_count = sum(
-                1 for g in self.genotypes.values() if marker in g and g[marker].confidence >= config.min_confidence
+                1
+                for g in self.genotypes.values()
+                if marker in g and g[marker].confidence >= config.min_confidence
             )
             if sample_count < config.min_sample_count:
                 continue
@@ -107,7 +110,7 @@ class DistanceCalculator:
         if n < n_components:
             raise ValueError(f"Not enough samples for {n_components} components")
 
-        D2 = D ** 2
+        D2 = D**2
         J = np.eye(n) - np.ones((n, n)) / n
         B = -0.5 * J @ D2 @ J
         eigvals, eigvecs = np.linalg.eigh(B)
