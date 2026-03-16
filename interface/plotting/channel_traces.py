@@ -13,17 +13,25 @@ COLOR_MAP = {
 }
 
 
+def _get_trace_x(trace, smap):
+    if len(smap) == len(trace) and len(smap) > 0:
+        return smap, "Size (bp)", True
+    return np.arange(len(trace), dtype=float), "Scan index", False
+
+
 def make_total_trace_figure(
     sample: Sample, marker_list: list, config: dict
 ) -> go.Figure:
     smap = sample.fsa_data["smap"]
     channels = sample.fsa_data["channels"]
-    peaks = sample.peaks
+    peaks = sample.peaks or {}
 
     fig = go.Figure()
+    first_trace = next(iter(channels.values()), np.array([]))
+    _, xaxis_title, has_size_map = _get_trace_x(first_trace, smap)
 
     # Bin and tolerance overlays
-    if marker_list:
+    if marker_list and has_size_map:
         y_max = _get_max_visible_peak_in_regions(peaks, marker_list, config)
         if y_max > 0:
             fig.update_yaxes(range=[0, y_max * 1.1])
@@ -54,9 +62,10 @@ def make_total_trace_figure(
     # Channel traces and peaks
     for ch, trace in channels.items():
         color = COLOR_MAP.get(ch, "gray")
+        x, _, _ = _get_trace_x(trace, smap)
         fig.add_trace(
             go.Scatter(
-                x=smap,
+                x=x,
                 y=trace,
                 mode="lines",
                 name=f"{ch} trace",
@@ -65,7 +74,7 @@ def make_total_trace_figure(
             )
         )
 
-        if ch != "LIZ" and ch in peaks:
+        if ch != "LIZ" and ch in peaks and has_size_map:
             fig.add_trace(
                 go.Scatter(
                     x=[p.position for p in peaks[ch]],
@@ -80,7 +89,7 @@ def make_total_trace_figure(
 
     fig.update_layout(
         title="Electropherogram Trace",
-        xaxis_title="Size (bp)",
+        xaxis_title=xaxis_title,
         yaxis_title="Intensity",
         margin=dict(t=30, b=30),
         height=400,
@@ -95,12 +104,13 @@ def make_per_channel_figure(
 ) -> go.Figure:
     smap = sample.fsa_data["smap"]
     trace = sample.fsa_data["channels"][ch]
-    peaks = sample.peaks.get(ch, [])
+    peaks = (sample.peaks or {}).get(ch, [])
     min_height = config.get("min_peak_height", 0)
     suppressed = sample.suppressed_peaks.get(ch, [])
 
     fig = go.Figure()
-    gray_regions = find_suppressed_regions(smap, trace, suppressed)
+    x, xaxis_title, has_size_map = _get_trace_x(trace, smap)
+    gray_regions = find_suppressed_regions(smap, trace, suppressed) if has_size_map else []
 
     # Trace segments
     last_idx = 0
@@ -108,7 +118,7 @@ def make_per_channel_figure(
         if left > last_idx:
             fig.add_trace(
                 go.Scatter(
-                    x=smap[last_idx:left],
+                    x=x[last_idx:left],
                     y=trace[last_idx:left],
                     mode="lines",
                     line=dict(color=COLOR_MAP.get(ch, "gray")),
@@ -119,7 +129,7 @@ def make_per_channel_figure(
             )
         fig.add_trace(
             go.Scatter(
-                x=smap[left:right],
+                x=x[left:right],
                 y=trace[left:right],
                 mode="lines",
                 line=dict(color="gray", dash="dot"),
@@ -129,10 +139,10 @@ def make_per_channel_figure(
         )
         last_idx = right
 
-    if last_idx < len(smap):
+    if last_idx < len(trace):
         fig.add_trace(
             go.Scatter(
-                x=smap[last_idx:],
+                x=x[last_idx:],
                 y=trace[last_idx:],
                 mode="lines",
                 line=dict(color=COLOR_MAP.get(ch, "gray")),
@@ -141,9 +151,9 @@ def make_per_channel_figure(
             )
         )
 
-    if marker_list and ch != "LIZ":
+    if marker_list and ch != "LIZ" and has_size_map:
         y_max = _get_max_visible_peak_in_regions(
-            sample.peaks, marker_list, config, target_channel=ch
+            sample.peaks or {}, marker_list, config, target_channel=ch
         )
         if y_max > 0:
             fig.update_yaxes(range=[0, y_max * 1.1])
@@ -205,22 +215,28 @@ def make_per_channel_figure(
         )
 
     # Determine x-axis range
-    marker_bins = [(m.bins, m.repeat_unit) for m in marker_list if m.channel == ch]
+    marker_bins = (
+        [(m.bins, m.repeat_unit) for m in marker_list if m.channel == ch]
+        if has_size_map
+        else []
+    )
     if marker_bins:
         min_start = min(bmin for (bmin, _), _ in marker_bins)
         max_end = max(bmax for (_, bmax), _ in marker_bins)
         max_repeat = max(rpt for _, rpt in marker_bins)
         pad = 10 * max_repeat
         x_range = [max(0, min_start - pad), max_end + pad]
-    elif peaks:
+    elif peaks and has_size_map:
         peak_positions = [p.position for p in peaks]
         pad = 10
         x_range = [max(0, min(peak_positions) - pad), max(peak_positions) + pad]
+    elif len(x):
+        x_range = [float(x[0]), float(x[-1])]
     else:
-        x_range = [min(smap), max(smap)]
+        x_range = [0.0, 1.0]
 
     fig.update_layout(
-        xaxis_title="Size (bp)",
+        xaxis_title=xaxis_title,
         yaxis_title="Intensity",
         height=200,
         margin=dict(t=5, b=5),

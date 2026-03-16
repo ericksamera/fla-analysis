@@ -9,7 +9,7 @@ from fla_pipeline.config.session_config import SessionConfig
 from fla_pipeline.config import __VERSION__
 from fla_pipeline.config.marker_config import MarkerConfig
 from fla_pipeline.config.global_config import GlobalConfig
-from fla_pipeline.analysis.config import DistanceConfig
+from fla_pipeline.config.distance_config import DistanceConfig
 
 
 def normalize_session_state():

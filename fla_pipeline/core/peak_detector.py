@@ -14,6 +14,9 @@ def detect_peaks(
 ) -> Tuple[Dict[str, List[Peak]], float]:
     peak_dict: Dict[str, List[Peak]] = {}
 
+    if len(smap) == 0:
+        return peak_dict, 0.0, defaultdict(list)
+
     # Step 1: Detect peaks per channel
     for ch_name, intensity_array in channels.items():
         if ch_name == "LIZ":
@@ -25,6 +28,9 @@ def detect_peaks(
 
         peaks: List[Peak] = []
         for idx in peak_indices:
+            if idx >= len(smap):
+                continue
+
             size = smap[idx]
             if size < config.min_peak_position:
                 continue
