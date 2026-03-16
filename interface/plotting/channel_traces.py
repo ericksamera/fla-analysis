@@ -1,5 +1,7 @@
 # interface/plotting/channel_traces.py
 
+import numpy as np
+
 import plotly.graph_objects as go
 from fla_pipeline.models.sample import Sample
 from interface.backend.trace_utils import find_suppressed_regions
