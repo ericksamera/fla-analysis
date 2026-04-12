@@ -9,16 +9,20 @@ import numpy as np
 from scipy.signal import find_peaks
 
 
+def _get_position_axis(smap: np.ndarray, trace_len: int) -> Tuple[np.ndarray, bool]:
+    if len(smap) == trace_len and trace_len > 0:
+        return np.asarray(smap, dtype=float), True
+    return np.arange(trace_len, dtype=float), False
+
+
 def detect_peaks(
     smap: np.ndarray, channels: Dict[str, np.ndarray], config: GlobalConfig
 ) -> Tuple[Dict[str, List[Peak]], float]:
     peak_dict: Dict[str, List[Peak]] = {}
 
-    if len(smap) == 0:
-        return peak_dict, 0.0, defaultdict(list)
-
     # Step 1: Detect peaks per channel
     for ch_name, intensity_array in channels.items():
+        position_axis, has_size_map = _get_position_axis(smap, len(intensity_array))
         if ch_name == "LIZ":
             peak_indices, _ = find_peaks(intensity_array, height=100, distance=3)
         else:
@@ -28,11 +32,11 @@ def detect_peaks(
 
         peaks: List[Peak] = []
         for idx in peak_indices:
-            if idx >= len(smap):
+            if idx >= len(position_axis):
                 continue
 
-            size = smap[idx]
-            if size < config.min_peak_position:
+            position = position_axis[idx]
+            if position < config.min_peak_position:
                 continue
 
             raw_intensity = intensity_array[idx]
@@ -40,14 +44,17 @@ def detect_peaks(
 
             if saturated:
                 corrected_intensity, corrected_position, width = correct_if_saturated(
-                    idx, smap, intensity_array
+                    idx, position_axis, intensity_array
                 )
                 note = f"Saturated; corrected via Gaussian fit (μ={corrected_position:.2f}, FWHM={width:.2f})"
             else:
                 corrected_intensity = raw_intensity
-                corrected_position = size
+                corrected_position = position
                 width = 0.0
                 note = ""
+
+            if not has_size_map:
+                note = (note + " " if note else "") + "Position reported in scan index."
 
             peak = Peak(
                 position=round(corrected_position, 2),
@@ -60,7 +67,7 @@ def detect_peaks(
 
             peaks.append(peak)
 
-            peak_dict[ch_name] = peaks
+        peak_dict[ch_name] = peaks
 
     # Step 2: Cross-channel artifact detection
     all_peaks = []
